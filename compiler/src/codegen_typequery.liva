@@ -19,7 +19,7 @@
 // what codegen.liva already imports.
 
 import { TypeRef, Expr, Literal } from "./ast"
-import { RustEmitter, isIndexExprCopyType } from "./codegen"
+import { RustEmitter } from "./codegen"
 import {
     typeRefToTag, isCopyType, getLiteralTypeName
 } from "./codegen_types"
@@ -241,6 +241,11 @@ extend RustEmitter {
     _isKnownSetMethod(m: string): bool { return isKnownSetMethod(m) }
 
     _isKnownDateMethod(m: string): bool { return isKnownDateMethod(m) }
+}
+
+isIndexExprCopyType(e: RustEmitter, obj: Expr): bool {
+    let elem = e._getArrayElemTypeRef(obj)
+    return isCopyType(elem)
 }
 
 // Sentinel symbol so main.liva can import this module and bring its

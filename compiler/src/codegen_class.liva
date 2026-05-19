@@ -16,7 +16,7 @@
 //
 // Pure relocation — only calls back into existing RustEmitter helpers.
 
-import { ClassDecl, MethodDecl, FieldDecl, Program } from "./ast"
+import { ClassDecl, MethodDecl, FieldDecl, Program, TypeRef } from "./ast"
 import { RustEmitter } from "./codegen"
 
 extend RustEmitter {
@@ -751,6 +751,24 @@ extend RustEmitter {
 
     // -- Type alias --
 
+}
+
+fieldNeedsDebug(e: RustEmitter, optRef: TypeRef?): bool {
+    if optRef != null {
+        let needs = false
+        switch optRef {
+            TypeRef.Array(_) => { needs = true },
+            TypeRef.MapType(_, _) => { needs = true },
+            TypeRef.SetType(_) => { needs = true },
+            TypeRef.OptionalType(_) => { needs = true },
+            TypeRef.Tuple(_) => { needs = true },
+            TypeRef.Simple(name) => {
+                if e._globalEnums.has(name) { needs = true }
+            }
+        }
+        return needs
+    }
+    return false
 }
 
 // Sentinel symbol so main.liva can import this module and bring its

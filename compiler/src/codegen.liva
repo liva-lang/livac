@@ -653,56 +653,6 @@ inferArrowReturnType(e: RustEmitter, expr: Expr): string {
 // Cycle 51 (A1 step 7) — pure TypeRef helpers extracted to free functions.
 // Switch on TypeRef (not Expr) so BS-FRAG-1 safe.
 
-// Cycle 53 — buildParamType extracted using e: RustEmitter pattern
-// (proven by inferArrowReturnType in Cycle 42).
-buildParamType(e: RustEmitter, optRef: TypeRef?): string {
-    if optRef != null {
-        return e._emitType(optRef)
-    }
-    return "/* inferred */"
-}
-
-buildReturnType(e: RustEmitter, optRef: TypeRef?, isFallible: bool): string {
-    if optRef != null {
-        let isAlreadyFallible = false
-        switch optRef {
-            TypeRef.Fallible(_) => { isAlreadyFallible = true }
-        }
-        let typeStr = e._emitType(optRef)
-        if isFallible && not isAlreadyFallible {
-            return $" -> Result<{typeStr}, liva_rt::Error>"
-        }
-        return $" -> {typeStr}"
-    }
-    if isFallible {
-        return " -> Result<(), liva_rt::Error>"
-    }
-    return ""
-}
-
-fieldNeedsDebug(e: RustEmitter, optRef: TypeRef?): bool {
-    if optRef != null {
-        let needs = false
-        switch optRef {
-            TypeRef.Array(_) => { needs = true },
-            TypeRef.MapType(_, _) => { needs = true },
-            TypeRef.SetType(_) => { needs = true },
-            TypeRef.OptionalType(_) => { needs = true },
-            TypeRef.Tuple(_) => { needs = true },
-            TypeRef.Simple(name) => {
-                if e._globalEnums.has(name) { needs = true }
-            }
-        }
-        return needs
-    }
-    return false
-}
-
-isIndexExprCopyType(e: RustEmitter, obj: Expr): bool {
-    let elem = e._getArrayElemTypeRef(obj)
-    return isCopyType(elem)
-}
-
 warn(e: RustEmitter, msg: string) {
     e._warnings.push(msg)
 }

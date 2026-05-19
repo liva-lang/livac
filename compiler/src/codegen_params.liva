@@ -25,9 +25,7 @@
 // codegen.liva (where they remain alongside the public generateRust API).
 
 import { Expr, Literal, BinOp, Param, BindingPattern, TypeRef, TypeParameter } from "./ast"
-import {
-    RustEmitter, buildParamType, buildReturnType
-} from "./codegen"
+import { RustEmitter } from "./codegen"
 import {
     fieldDefault, isMapType, buildTypeParamStr
 } from "./codegen_types"
@@ -206,6 +204,33 @@ extend RustEmitter {
         }
         return result
     }
+}
+
+// Cycle 53 — buildParamType extracted using e: RustEmitter pattern
+// (proven by inferArrowReturnType in Cycle 42).
+buildParamType(e: RustEmitter, optRef: TypeRef?): string {
+    if optRef != null {
+        return e._emitType(optRef)
+    }
+    return "/* inferred */"
+}
+
+buildReturnType(e: RustEmitter, optRef: TypeRef?, isFallible: bool): string {
+    if optRef != null {
+        let isAlreadyFallible = false
+        switch optRef {
+            TypeRef.Fallible(_) => { isAlreadyFallible = true }
+        }
+        let typeStr = e._emitType(optRef)
+        if isFallible && not isAlreadyFallible {
+            return $" -> Result<{typeStr}, liva_rt::Error>"
+        }
+        return $" -> {typeStr}"
+    }
+    if isFallible {
+        return " -> Result<(), liva_rt::Error>"
+    }
+    return ""
 }
 
 // Sentinel symbol so main.liva can import this module and bring its
