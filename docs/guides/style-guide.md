@@ -166,6 +166,22 @@ User {
 
 **Body order:** fields → constructor → methods.
 
+### Splitting a class with `extend`
+
+Use `extend ClassName { ... }` when a class grows large enough to merit its
+own set of files. File naming convention: owner is `name.liva`, extensions
+are `name_<concern>.liva`.
+
+```liva
+// emitter.liva           — owner: fields + constructor + tiny helpers
+// emitter_expr.liva      — extend Emitter { _emitExpr*() ... }
+// emitter_stmt.liva      — extend Emitter { _emitStmt*() ... }
+```
+
+Extensions add **methods only** (no fields, no constructor). Diagnostics
+E0910–E0913 guard misuse. See
+[class-extensions.md](../language-reference/class-extensions.md).
+
 ---
 
 ## 6. Collections

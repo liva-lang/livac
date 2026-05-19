@@ -54,6 +54,31 @@ Always use relative paths. Group: stdlib first, then project modules.
 - Public functions: no prefix. Private: `_` prefix
 - Module files: snake_case (`user_service.liva`)
 
+## When to Split a Class Across Files (`extend`)
+
+Use `extend ClassName { ... }` when a single class grows past ~300–500 LOC
+or mixes several concerns the owner module wants to keep separate. Convention:
+
+- **Owner file** carries the canonical name (`emitter.liva`) and holds the
+  fields, constructor, and a few cross-cutting methods.
+- **Extension files** use the suffix pattern `<owner>_<concern>.liva`:
+  - `emitter_expr.liva` — `extend Emitter { _emitExpr*() ... }`
+  - `emitter_stmt.liva` — `extend Emitter { _emitStmt*() ... }`
+  - `emitter_class.liva` — `extend Emitter { _emitClass*() ... }`
+- Each extension file imports the owner type explicitly:
+  `import { Emitter } from "./emitter"`.
+- One sentinel free function per extension (`emitterExprExtensionLoaded(): bool`)
+  keeps the module reachable when only the `extend` block is used (no other
+  imported symbols).
+
+The compiler merges every `extend` back into the owner `impl` at codegen time
+(zero runtime overhead). Helpers defined alongside an `extend` block are
+automatically reachable from the owner via a synthetic wildcard import —
+you don't need to re-export them.
+
+See [class-extensions.md](../language-reference/class-extensions.md) for the
+full reference (E0910–E0913).
+
 ## Anti-Patterns
 
 - **Circular dependencies** — extract shared code to a third module

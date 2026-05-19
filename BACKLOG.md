@@ -1308,9 +1308,10 @@ extend RustEmitter {
         (2026-05-19).
   - [x] `docs/QUICK_REFERENCE.md` — § 10.5 (2026-05-19).
   - [x] `docs/ERROR_CODES.md` — códigos E0910–E0913.
-  - [ ] `docs/guides/module-best-practices.md` — sección "When to split a class".
-  - [ ] `docs/guides/style-guide.md` — convención de nombres de archivo (`mod.liva`
-        + `mod_X.liva`).
+  - [x] `docs/guides/module-best-practices.md` — sección "When to Split a
+        Class Across Files" (2026-05-19).
+  - [x] `docs/guides/style-guide.md` — § "Splitting a class with extend"
+        + convención `name.liva` + `name_<concern>.liva` (2026-05-19).
 - [x] VS Code extension:
   - [x] `vscode-extension/snippets/liva.json` — snippet `extend`.
   - [x] `vscode-extension/syntaxes/liva.tmLanguage.json` — keyword highlight.
@@ -1350,7 +1351,12 @@ extend RustEmitter {
 ### Fase E — Promover apps a self-host
 - [x] `selfhost_apps/*.liva` (21 apps) deben pasar también con gen-2 — verificado 2026-05-07 (`compiler/tests/selfhost_apps/run_gen2.sh` 21/21).
 - [x] Renombrar a `selfhost_apps/` cuando todas pasen. ✅ 2026-05-07: directorio renombrado, scripts y docs actualizados, gauntlet 7/7 verde.
-- [ ] CI: ejecutar la suite contra ambos compiladores hasta el corte final.
+- [x] CI: ejecutar la suite contra ambos compiladores hasta el corte final. ✅
+      Verificado 2026-05-19: `.github/workflows/ci.yml` ya orquesta dos
+      jobs en cada PR — `test` (cargo test, ejercita el bootstrap Rust)
+      + `selfhost-quick` (bootstrap → gen-1 → gen-2 → `run_all.sh --quick`,
+      ejercita gen-2). Job nightly `selfhost-full` añade la verificación
+      de idempotencia `gen-2 ≡ gen-3` (src + bin).
 
 ### Fase F — Cortar la cuerda
 - [ ] Construir `livac` final con gen-N (Liva).

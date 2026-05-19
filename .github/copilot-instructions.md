@@ -6,8 +6,8 @@
 > **Tests:** 518 passing  
 > **Self-hosting:** Phase 7 idempotente; Phase 8 ✅; Phase 9 ✅ (9.1–9.6, 9.8, 9.9, 9.10 done; 9.7/9.11 absorbidos por Fase 10) — idempotencia gen-2≡gen-3 binario, bench oficial en `benchmarks/RESULTS.md`  
 > **Rama activa:** `feat/self-hosting-v2`  
-> **Estado:** **v2.0 al 100% — RELEASE READY** ✅ (2026-04-29). Fase 10 Tier 1 + Tier 2 (10.4) cerrados. **5 bloques de v2.0 al 100% TODOS cerrados:** (1) ✅ cross-module `&str` — Word counting 1.23x → 0.98x (commit b6c4aa4); (2) ✅ Box<str> Map values — analysis-only, no shipped (no hay hotpath con Map<K,String>; idiom `.get() or default` clona en cualquier caso, ahorro 24B→16B no cambia bench — rationale completo en `BACKLOG.md` § Bloque 2); (3) ✅ cobertura medida — `cargo-llvm-cov` baseline 62.81% regions / 62.36% lines (commit fe3168d); (4) ✅ E2E self-host — `compiler/tests/e2e_selfhost.sh` 5/5 programas pasan con bootstrap-bin == gen-2-bin stdout idéntico (commit a4149fe); (5) ✅ limpieza BACKLOG / ROADMAP / CHANGELOG sincronizados a v2.0 final. **Bench final** (all under 1.15x gate): Line 1.07x · CSV 1.00x · Word 0.98x · Map 1.09x. **Validation locked**: 518 cargo tests · bootstrap 9/9 · e2e_selfhost 5/5 · gen-2 ≡ gen-3 (src+bin).  
-> **Última actualización:** 2026-04-29
+> **Estado:** **v2.0 al 100% — RELEASE READY** ✅ (2026-04-29). Fase 10 Tier 1 + Tier 2 (10.4) cerrados. Cycle 65 (2026-05-19) post-rc1: **cross-module `extend` helpers desbloqueados** vía synth wildcard imports (`livac/src/module.rs` + `compiler/src/main.liva`), `codegen.liva` 750 → 668 LOC con 7 helpers movidos / 5 inlinados. Fase C.1 (`extend` feature) ✅ DONE. Fase E (CI dual) ✅ DONE — `ci.yml` ejercita bootstrap + gen-2 en cada PR + nightly idempotency. **Sigue abierta solo Fase F (cortar la cuerda Rust → v2.1).**
+> **Última actualización:** 2026-05-19
 
 ---
 
