@@ -8,7 +8,7 @@ use super::document::DocumentState;
 use super::imports::ImportResolver;
 use super::symbols::SymbolTable;
 use super::workspace::{WorkspaceIndex, WorkspaceManager};
-use crate::{lexer, parser, semantic};
+use livac::{lexer, parser, semantic};
 
 /// Main Language Server for Liva
 pub struct LivaLanguageServer {

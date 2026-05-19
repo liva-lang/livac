@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "liva-tools"]
+resolver = "2"
+
 [package]
 name = "livac"
 version = "2.0.0-rc1"
@@ -45,14 +49,6 @@ rayon = "1.11"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 
-# LSP
-tower-lsp = "0.20"
-dashmap = "5.5"
-
-# Code formatting
-prettyplease = "0.2"
-syn = { version = "2.0", features = ["full", "parsing"] }
-
 # Version info
 rustc_version = "0.4"
 
@@ -61,6 +57,7 @@ pretty_assertions = "1.4"
 insta = "1.40"
 proptest = "1.4"
 tempfile = "3.10"
+liva-tools = { path = "liva-tools" }
 
 [profile.release]
 opt-level = 3

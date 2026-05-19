@@ -17412,7 +17412,8 @@ pub fn generate_with_ast(program: &Program, ctx: DesugarContext) -> Result<(Stri
 
 pub fn generate_cargo_toml(ctx: &DesugarContext) -> Result<String> {
     let mut cargo_toml = String::from(
-        "[package]\n\
+        "[workspace]\n\n\
+         [package]\n\
          name = \"liva_project\"\n\
          version = \"0.1.0\"\n\
          edition = \"2021\"\n\n\

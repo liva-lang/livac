@@ -1,6 +1,6 @@
 use tower_lsp::lsp_types::Url;
 
-use crate::ast::{Program, TopLevel};
+use livac::ast::{Program, TopLevel};
 
 /// Information about a single import statement
 #[derive(Debug, Clone)]

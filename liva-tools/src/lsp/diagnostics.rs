@@ -1,6 +1,6 @@
 use tower_lsp::lsp_types::*;
 
-use crate::CompilerError;
+use livac::CompilerError;
 
 /// Converts a compiler error to an LSP diagnostic
 pub fn error_to_diagnostic(error: &CompilerError) -> Option<Diagnostic> {

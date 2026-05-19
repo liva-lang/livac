@@ -6212,8 +6212,8 @@ main() {
 
     let tokens = tokenize(source).unwrap();
     let program = parse(tokens, source).unwrap();
-    let options = livac::formatter::FormatOptions::default();
-    let formatted = livac::formatter::format_source(source, &options).unwrap();
+    let options = liva_tools::formatter::FormatOptions::default();
+    let formatted = liva_tools::formatter::format_source(source, &options).unwrap();
     assert!(formatted.contains("defer print(\"cleanup\")"), "Single-line defer should be formatted");
     assert!(formatted.contains("defer {"), "Block defer should be formatted");
 }
@@ -6335,8 +6335,8 @@ main() {
 
     let tokens = tokenize(source).unwrap();
     let _program = parse(tokens, source).unwrap();
-    let options = livac::formatter::FormatOptions::default();
-    let formatted = livac::formatter::format_source(source, &options).unwrap();
+    let options = liva_tools::formatter::FormatOptions::default();
+    let formatted = liva_tools::formatter::format_source(source, &options).unwrap();
     assert!(formatted.contains("x += 5"), "Formatter should preserve +=");
     assert!(formatted.contains("x -= 3"), "Formatter should preserve -=");
     assert!(formatted.contains("x *= 2"), "Formatter should preserve *=");
@@ -6420,8 +6420,8 @@ main() {
 
     let tokens = tokenize(source).unwrap();
     let _program = parse(tokens, source).unwrap();
-    let options = livac::formatter::FormatOptions::default();
-    let formatted = livac::formatter::format_source(source, &options).unwrap();
+    let options = liva_tools::formatter::FormatOptions::default();
+    let formatted = liva_tools::formatter::format_source(source, &options).unwrap();
     assert!(formatted.contains("Token.Number(_)"), "Formatter should preserve _ wildcard");
     assert!(formatted.contains("Token.Text(_)"), "Formatter should preserve _ wildcard");
 }
@@ -6475,8 +6475,8 @@ main() {
 
     let tokens = tokenize(source).unwrap();
     let _program = parse(tokens, source).unwrap();
-    let options = livac::formatter::FormatOptions::default();
-    let formatted = livac::formatter::format_source(source, &options).unwrap();
+    let options = liva_tools::formatter::FormatOptions::default();
+    let formatted = liva_tools::formatter::format_source(source, &options).unwrap();
     assert!(formatted.contains("for i, item in arr"), "Formatter should preserve for i, item in arr");
 }
 

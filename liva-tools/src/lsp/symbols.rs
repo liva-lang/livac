@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use tower_lsp::lsp_types::*;
 
-use crate::ast::{ClassDecl, FunctionDecl, Program, TopLevel, TypeAliasDecl, TypeDecl};
-use crate::span::{SourceMap, Span};
+use livac::ast::{ClassDecl, FunctionDecl, Program, TopLevel, TypeAliasDecl, TypeDecl};
+use livac::span::{SourceMap, Span};
 
 /// Symbol information
 #[derive(Debug, Clone)]

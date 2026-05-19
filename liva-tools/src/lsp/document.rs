@@ -3,7 +3,7 @@ use tower_lsp::lsp_types::*;
 
 use super::imports::ImportInfo;
 use super::symbols::SymbolTable;
-use crate::ast::Program;
+use livac::ast::Program;
 
 /// State of an open document
 pub struct DocumentState {

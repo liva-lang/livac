@@ -19,6 +19,8 @@ extend RustEmitter {
                       usesChrono: bool, usesRandom: bool, usesCrypto: bool,
                       usesRayon: bool, usesHttpClient: bool): string {
         let lines: [string] = []
+        lines.push("[workspace]")
+        lines.push("")
         lines.push("[package]")
         lines.push($"name = \"{projectName}\"")
         lines.push("version = \"0.1.0\"")

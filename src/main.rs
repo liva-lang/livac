@@ -168,20 +168,19 @@ async fn main() {
             }
         }
         Commands::Lsp => {
-            if let Err(e) = run_lsp_server().await {
-                eprintln!("LSP server error: {}", e);
-                std::process::exit(1);
-            }
+            let code = delegate_to_liva_tools(&["lsp".to_string()]);
+            std::process::exit(code);
         }
-        Commands::Fmt { input, check, verbose, json } => {
-            if let Err(e) = run_format(&input, check, verbose) {
-                if json {
-                    eprintln!(r#"{{"error": "{}"}}"#, e);
-                } else {
-                    eprintln!("{} {}", "Error:".red().bold(), e);
-                }
-                std::process::exit(1);
+        Commands::Fmt { input, check, verbose, json: _json } => {
+            let mut args = vec!["fmt".to_string(), input.display().to_string()];
+            if check {
+                args.push("--check".to_string());
             }
+            if verbose {
+                args.push("--verbose".to_string());
+            }
+            let code = delegate_to_liva_tools(&args);
+            std::process::exit(code);
         }
         Commands::Test { input, filter, verbose } => {
             let exit_code = run_tests(input.as_ref(), filter.as_deref(), verbose);
@@ -236,109 +235,55 @@ async fn main() {
             }
         }
         Commands::Lint { input, json } => {
-            let exit_code = run_lint(&input, json);
-            std::process::exit(exit_code);
+            let mut args = vec!["lint".to_string(), input.display().to_string()];
+            if json {
+                args.push("--json".to_string());
+            }
+            let code = delegate_to_liva_tools(&args);
+            std::process::exit(code);
         }
     }
 }
 
-fn run_lint(input: &PathBuf, json: bool) -> i32 {
-    use livac::linter;
-
-    let source = match std::fs::read_to_string(input) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("{} Failed to read file: {}", "Error:".red().bold(), e);
-            return 1;
-        }
-    };
-
-    let filename = input.to_str().unwrap_or("unknown");
-
-    // Parse the file (lexer + parser)
-    let tokens = match livac::lexer::tokenize(&source) {
-        Ok(t) => t,
-        Err(e) => {
-            if json {
-                if let Some(json_str) = e.to_json() {
-                    println!("{}", json_str);
-                }
-            } else {
-                eprintln!("{} {}", "Error:".red().bold(), e);
-            }
-            return 1;
-        }
-    };
-
-    let ast = match livac::parser::parse(tokens, &source) {
-        Ok(a) => a,
-        Err(e) => {
-            if json {
-                if let Some(json_str) = e.to_json() {
-                    println!("{}", json_str);
-                }
-            } else {
-                eprintln!("{} {}", "Error:".red().bold(), e);
-            }
-            return 1;
-        }
-    };
-
-    // Run linter
-    let warnings = linter::lint(&ast, filename, &source);
-
-    if json {
-        println!("{}", linter::format_warnings_json(&warnings));
-    } else {
-        if warnings.is_empty() {
-            println!("{} {} — no warnings", "✓".green().bold(), input.display());
+/// Locate and spawn the `liva-tools` binary, returning its exit code.
+///
+/// Lookup order:
+///   1. `LIVA_TOOLS_BIN` env var.
+///   2. Sibling next to the current `livac` binary (same install dir).
+///   3. `liva-tools` on PATH.
+fn delegate_to_liva_tools(args: &[String]) -> i32 {
+    let candidate: PathBuf = if let Ok(p) = std::env::var("LIVA_TOOLS_BIN") {
+        PathBuf::from(p)
+    } else if let Ok(exe) = std::env::current_exe() {
+        let sibling = exe.with_file_name(if cfg!(windows) {
+            "liva-tools.exe"
         } else {
-            eprint!("{}", linter::format_warnings(&warnings));
-        }
-    }
-
-    0
-}
-
-fn run_format(input: &PathBuf, check_only: bool, verbose: bool) -> Result<(), CompilerError> {
-    use livac::formatter::{check_format, format_source, FormatOptions};
-
-    let options = FormatOptions::default();
-    let source = std::fs::read_to_string(input)
-        .map_err(|e| CompilerError::IoError(format!("Failed to read file: {}", e)))?;
-
-    if check_only {
-        // Check mode: report whether file is formatted
-        let is_formatted = check_format(&source, &options)?;
-        if is_formatted {
-            println!("{} {}", "✓".green(), input.display());
+            "liva-tools"
+        });
+        if sibling.exists() {
+            sibling
         } else {
-            let formatted = format_source(&source, &options)?;
-            println!("{} {} (needs formatting)", "✗".red(), input.display());
-
-            // Show a simple diff
-            if verbose {
-                println!();
-                for diff in simple_diff(&source, &formatted) {
-                    println!("{}", diff);
-                }
-            }
-
-            std::process::exit(1);
+            PathBuf::from("liva-tools")
         }
     } else {
-        // Format in place
-        let formatted = format_source(&source, &options)?;
-        if formatted == source {
-            println!("{} {} (already formatted)", "✓".green(), input.display());
-        } else {
-            std::fs::write(input, &formatted)
-                .map_err(|e| CompilerError::IoError(format!("Failed to write file: {}", e)))?;
-            println!("{} {} (formatted)", "✓".green().bold(), input.display());
+        PathBuf::from("liva-tools")
+    };
+
+    match Command::new(&candidate).args(args).status() {
+        Ok(status) => status.code().unwrap_or(1),
+        Err(e) => {
+            eprintln!(
+                "{} Failed to invoke `liva-tools` at {}: {}",
+                "Error:".red().bold(),
+                candidate.display(),
+                e
+            );
+            eprintln!(
+                "   Hint: set LIVA_TOOLS_BIN, or ensure `liva-tools` is on PATH or next to `livac`."
+            );
+            1
         }
     }
-
-    Ok(())
 }
 
 /// Initialize a new Liva project with scaffolding
@@ -753,43 +698,6 @@ describe("Score Grading", () => {
 })
 "#
     .to_string()
-}
-
-/// Simple line-by-line diff for format check output
-fn simple_diff(original: &str, formatted: &str) -> Vec<String> {
-    let orig_lines: Vec<&str> = original.lines().collect();
-    let fmt_lines: Vec<&str> = formatted.lines().collect();
-    let mut diffs = Vec::new();
-    let max_lines = orig_lines.len().max(fmt_lines.len());
-
-    for i in 0..max_lines {
-        let orig = orig_lines.get(i).unwrap_or(&"");
-        let fmt = fmt_lines.get(i).unwrap_or(&"");
-        if orig != fmt {
-            diffs.push(format!(
-                "  L{}: {} → {}",
-                i + 1,
-                format!("- {}", orig).red(),
-                format!("+ {}", fmt).green()
-            ));
-        }
-    }
-
-    diffs
-}
-
-async fn run_lsp_server() -> Result<(), Box<dyn std::error::Error>> {
-    use livac::lsp::LivaLanguageServer;
-    use tower_lsp::{LspService, Server};
-
-    let stdin = tokio::io::stdin();
-    let stdout = tokio::io::stdout();
-
-    let (service, socket) = LspService::build(|client| LivaLanguageServer::new(client)).finish();
-
-    Server::new(stdin, stdout, socket).serve(service).await;
-
-    Ok(())
 }
 
 /// Self-update: download the latest release from GitHub and replace the current binary

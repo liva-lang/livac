@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use tower_lsp::lsp_types::*;
 
 use super::symbols::{Symbol, SymbolTable};
-use crate::ast::Program;
+use livac::ast::Program;
 
 /// Metadata about a file in the workspace
 #[derive(Debug, Clone)]

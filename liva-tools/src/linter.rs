@@ -9,8 +9,8 @@
 /// - **W002**: Import declared but never used
 /// - **W003**: Unreachable code after `return` or `fail`
 /// - **W004**: Comparison is always true or always false
-use crate::ast::*;
-use crate::span::SourceMap;
+use livac::ast::*;
+use livac::span::SourceMap;
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 

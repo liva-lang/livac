@@ -1,5 +1,5 @@
 /// Tests for the Liva linter (W001-W004)
-use livac::linter;
+use liva_tools::linter;
 
 /// Helper: parse source and run linter, return warnings
 fn lint_source(source: &str) -> Vec<linter::LintWarning> {

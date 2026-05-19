@@ -16,9 +16,9 @@
 /// 2. Parsing the source into an AST (reusing the compiler pipeline)
 /// 3. Pretty-printing the AST back to source with canonical formatting
 /// 4. Reinserting comments at their original relative positions
-use crate::ast::*;
-use crate::error::{CompilerError, Result};
-use crate::{lexer, parser};
+use livac::ast::*;
+use livac::error::{CompilerError, Result};
+use livac::{lexer, parser};
 
 /// Formatting configuration options
 #[derive(Debug, Clone)]
