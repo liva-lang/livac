@@ -120,8 +120,12 @@ jobs:
       - name: Build .deb package
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
-          cargo deb --no-build --target ${{ matrix.target }}
-          cp target/${{ matrix.target }}/debian/livac_*.deb livac_amd64.deb
+          # Phase F.3: package manifest moved to bootstrap/. cargo-deb resolves
+          # `target/...` against workspace root automatically; other asset paths
+          # in bootstrap/Cargo.toml use `../skills`, `../scripts`, `../docs` to
+          # reach workspace-root files.
+          (cd bootstrap && cargo deb --no-build --target ${{ matrix.target }})
+          cp target/${{ matrix.target }}/debian/livac*.deb livac_amd64.deb
           ls -la livac_amd64.deb
 
       - name: Upload .deb artifact
@@ -138,9 +142,12 @@ jobs:
       - name: Build .rpm package
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
-          cargo generate-rpm --target ${{ matrix.target }}
-          find target -name '*.rpm' -type f
-          cp $(find target -name '*.rpm' -type f | head -1) livac.x86_64.rpm
+          # cargo-generate-rpm requires being invoked from the package's
+          # manifest dir (no --manifest-path support). Output lands under
+          # bootstrap/target/<target>/generate-rpm/.
+          (cd bootstrap && cargo generate-rpm --target ${{ matrix.target }})
+          find bootstrap/target target -name '*.rpm' -type f
+          cp "$(find bootstrap/target target -name '*.rpm' -type f | head -1)" livac.x86_64.rpm
           ls -la livac.x86_64.rpm
 
       - name: Upload .rpm artifact
