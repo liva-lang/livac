@@ -27,6 +27,10 @@ run_gate() {
     echo "═══════════════════════════════════════════════════════════"
     echo "▶ Gate: $name"
     echo "═══════════════════════════════════════════════════════════"
+    # Clean up tmpfs build artifacts between gates so /tmp doesn't fill.
+    # Each gate generates 100s of MB of build outputs; without this, the
+    # 7.7G tmpfs fills and later gates spuriously fail with "No space left".
+    rm -rf "${TMPDIR:-/tmp}"/liva_* "${TMPDIR:-/tmp}"/rustc* "${TMPDIR:-/tmp}"/sccache* 2>/dev/null || true
     if eval "$cmd"; then
         local end=$(date +%s)
         NAMES+=("$name")
