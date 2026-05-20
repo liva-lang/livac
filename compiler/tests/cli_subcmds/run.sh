@@ -458,6 +458,19 @@ else
     check_fail "livac test hooks.test.liva" "rc=$rc; log tail:\n$(tail -20 "$T16/log")"
 fi
 
+# ---------------------------------------------------------------------------
+# Test 17 — `livac repl`: interactive REPL session. Pipe `.help` then `.exit`
+# into stdin and verify the banner and help text appear and the process exits
+# cleanly.
+T17="$OUT/repl"; mkdir -p "$T17"
+printf ".help\n.exit\n" | "$G2" repl > "$T17/log" 2>&1
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "Liva REPL" "$T17/log" && grep -q "REPL commands" "$T17/log"; then
+    check_ok "livac repl (banner + .help + .exit)"
+else
+    check_fail "livac repl" "rc=$rc; log:\n$(cat "$T17/log")"
+fi
+
 echo "===================="
 echo "  CLI subcmds: $PASS pass / $FAIL fail"
 [[ $FAIL -eq 0 ]]

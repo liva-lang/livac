@@ -273,16 +273,20 @@
 - [x] Docs: `db.md`
 - [x] Example: `examples/db-demo/main.liva`
 
-### REPL — `livac repl` ⏸️ APLAZADO
+### REPL — `livac repl` ✅ MVP DONE (2026-05-20)
 
-> **Nota:** Dejado fuera de v1.8 por ahora. Se retomará en una versión futura si hay demanda.
+> **Shipped en v2.3:** `livac repl` arranca una sesión interactiva. Acumula
+> declaraciones (let/const/import/class/enum/type/fun) en un preámbulo
+> oculto y, en cada línea, recompila un programa completo en `target/liva_repl/`.
+> Las expresiones se imprimen envolviéndolas con `print(...)`. Cargo
+> incremental mantiene los rebuilds rápidos tras el primero.
 
-- [ ] Loop read-eval-print básico
-- [ ] Mantener estado entre líneas (variables persisten)
-- [ ] Mostrar resultado de expresiones
-- [ ] Comandos `.help`, `.exit`, `.clear`
-- [ ] Historial con readline
-- [ ] Tests
+- [x] Loop read-eval-print básico
+- [x] Mantener estado entre líneas (variables persisten en el preámbulo)
+- [x] Mostrar resultado de expresiones (auto-wrap con `print(...)`)
+- [x] Comandos `.help`, `.exit`, `.quit`, `.clear`, `.show`
+- [ ] Historial con readline (requiere crate `rustyline` — fuera de MVP)
+- [x] Tests (CLI subcommand test 17: pipe `.help`/`.exit`, verifica banner)
 
 ### Linter / Warnings ✅
 
@@ -1380,7 +1384,7 @@ extend RustEmitter {
 - [x] WebSockets — módulo `WS` (tungstenite sync) ✅ 2026-05-20
 - [x] YAML/TOML parsing — módulos nuevos (crates `serde_yaml`/`toml`) (2026-05-19) — reúsan `serde_json::Value`, indexación + JsonValueExt aplican igual que JSON; smoke test `compiler/tests/selfhost_apps/app21_yaml_toml.liva`; docs `docs/language-reference/stdlib/{yaml,toml}.md`.
 - [x] `livac bench` — benchmarking built-in (✅ 2026-05-20: walks `*.bench.liva`, compiles in release mode, times execution via `Date.timestamp()`, summary line `BENCH <file> — XXX ms`. CLI smoke test 13 in `cli_subcmds/run.sh`.)
-- [ ] REPL — `livac repl` (aplazado desde v1.8)
+- [x] REPL — `livac repl` ✅ MVP DONE (2026-05-20) — sesión interactiva con preámbulo acumulado, comandos `.help`/`.exit`/`.clear`/`.show`, auto-print de expresiones. CLI test 17.
 - [ ] Lazy iterators — fusionar cadenas `filter().map().take()` sin `collect()` intermedios en codegen (optimización de rendimiento para arrays grandes)
 
 ---

@@ -11,6 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Added — `livac repl` — interactive REPL session
+
+- New CLI subcommand `livac repl` starts an interactive Read-Eval-Print loop.
+- Declarations (`let`/`const`/`import`/`class`/`enum`/`type`/`fun`) are
+  accumulated into a hidden preamble; each input line rebuilds a complete
+  program in `target/liva_repl/` via cargo. Cargo's incremental build keeps
+  subsequent iterations snappy after the first rebuild.
+- Expressions are auto-printed by wrapping them with `print(...)`.
+- Meta-commands: `.help`, `.exit`, `.quit`, `.clear`, `.show`.
+- EOF protection (3 consecutive empty reads → exit) handles piped stdin.
+- Cargo output is filtered (Compiling/Finished/warnings/notes hidden) so the
+  REPL surface stays clean.
+- CLI subcommand test 17 (`compiler/tests/cli_subcmds/run.sh`) pipes
+  `.help\n.exit\n` and asserts the banner + help text.
+- Known limitations (deferred to a future iteration): no line history
+  (would need `rustyline`), single-line input only (multi-line function
+  bodies must be on one line for now).
+
 ### Added — Jest-style test lifecycle hooks (`beforeEach` / `afterEach`)
 
 - Inside any `describe("name", () => { ... })`, `beforeEach(() => { ... })`
