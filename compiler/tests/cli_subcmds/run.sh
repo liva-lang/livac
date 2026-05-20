@@ -354,6 +354,30 @@ EOF
     unset LIVA_TOOLS_BIN
 fi
 
+# ---------------------------------------------------------------------------
+# Test 13 — `livac bench`: compiles a *.bench.liva file in release mode and
+# runs it, reporting elapsed ms.
+# ---------------------------------------------------------------------------
+T13="$OUT/bench"; mkdir -p "$T13"
+cat > "$T13/sample.bench.liva" <<'EOF'
+fib(n: number): number {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+main() {
+    let r = fib(20)
+    print($"fib(20)={r}")
+}
+EOF
+"$G2" bench "$T13/sample.bench.liva" >"$T13/log" 2>&1
+rc=$?
+if [[ $rc -eq 0 ]] && grep -qE 'BENCH .* ms' "$T13/log"; then
+    check_ok "livac bench sample.bench.liva (exit 0, BENCH line emitted)"
+else
+    check_fail "livac bench sample.bench.liva" "rc=$rc; log tail:\n$(tail -20 "$T13/log")"
+fi
+
 echo "===================="
 echo "  CLI subcmds: $PASS pass / $FAIL fail"
 [[ $FAIL -eq 0 ]]

@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [Unreleased] — v2.3
+
+### Added — `livac bench` subcommand
+
+- New CLI command: `livac bench [path]` walks `*.bench.liva` files,
+  compiles each in release mode and runs the binary with wall-clock
+  timing. Output: `BENCH <file> — XXX ms` per file plus summary.
+- `Date.timestamp()` (int millis) is used for timing rather than
+  `Date.now()` (which returns a `Date` value whose subtraction yields
+  a `Duration` formatted as ISO 8601).
+- `.bench.liva` extension recognized by `_removeLivaExtMain` so the
+  cargo crate name matches the binary path.
+- CLI smoke test 13 added in `compiler/tests/cli_subcmds/run.sh`.
+
+### Added — Version sync at build time
+
+- `make livac` now depends on `make sync-version` which reads the
+  authoritative compiler version from `bootstrap/Cargo.toml` and
+  `sed`-rewrites `const LIVA_COMPILER_VERSION` in
+  `compiler/src/main.liva`. `bootstrap/Cargo.toml` is the single
+  source of truth.
+
+### Fixed — Print/println format with bound errors (GAP-002)
+
+- Multi-argument `print(prefix, err)` / `println(prefix, err)` now
+  route the error-binding identifier through `_emitFormatArg`, which
+  unwraps `Option<liva_rt::Error>` via
+  `.as_ref().map(|e| format!("{}", e)).unwrap_or_default()`. Closes
+  `GAP-002`, `GAP-004`, `GAP-006` in `BUGS.md`.
+
 ## [2.2.0] — 2026-05-20 — YAML/TOML stdlib + JSON Value `.length` fix
 
 ### Added — Stdlib YAML and TOML

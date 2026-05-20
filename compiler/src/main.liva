@@ -148,6 +148,7 @@ printUsage() {
     print("  run     Compile and run")
     print("  check   Check for errors without compiling")
     print("  test    Run test files (*.test.liva)")
+    print("  bench   Run benchmark files (*.bench.liva) in release mode")
     print("  init    Scaffold a new Liva project")
     print("  fmt     Format Liva source files")
     print("  lint    Lint Liva source files")
@@ -919,6 +920,9 @@ _removeLivaExtMain(fileName: string): string {
     if result.endsWith(".test") {
         result = result.substring(0, result.length - 5)
     }
+    if result.endsWith(".bench") {
+        result = result.substring(0, result.length - 6)
+    }
     return result
 }
 
@@ -1085,6 +1089,114 @@ _extractTestCount(output: string): int {
         }
     }
     return 0
+}
+
+// =====================================================================
+//  Benchmark Runner — livac bench <file|dir>
+// =====================================================================
+// Compiles each *.bench.liva file in release mode and measures wall-clock
+// time of execution. The bench file's main() is responsible for the inner
+// benchmark loop (warmup, iterations, etc.); livac just times the binary.
+
+_findBenchFiles(path: string): [string] {
+    let result: [string] = []
+    if path.endsWith(".bench.liva") {
+        result.push(path)
+        return result
+    }
+    if path.endsWith(".liva") {
+        result.push(path)
+        return result
+    }
+    return _walkBenchDir(path)
+}
+
+_walkBenchDir(dir: string): [string] {
+    let result: [string] = []
+    let entries, err = Dir.list(dir)
+    if err { return result }
+    for name in entries {
+        if name.startsWith(".") { continue }
+        if name == "target" or name == "node_modules" { continue }
+        let full = Path.join(dir, name)
+        if name.endsWith(".bench.liva") {
+            result.push(full)
+        } else if Dir.exists(full) {
+            let sub = _walkBenchDir(full)
+            for s in sub {
+                result.push(s)
+            }
+        }
+    }
+    return result
+}
+
+_runBenchCommand(opts: CliOptions) {
+    print("⏱️  Liva Benchmark Runner (self-hosted)")
+    print("")
+
+    let benchFiles = _findBenchFiles(opts.inputFile)
+
+    if benchFiles.length == 0 {
+        print("No bench files found (looking for *.bench.liva)")
+        return
+    }
+
+    print($"  → Found {benchFiles.length} bench file(s)")
+    print("")
+
+    let okCount = 0
+    let failCount = 0
+
+    for benchFile in benchFiles {
+        let outputDir = "target/liva_bench"
+        let bfCopy = $"{benchFile}"
+        let source = readFile(bfCopy)
+        let isMultiFile = hasImports(source)
+
+        // Always compile in release mode for benchmarks
+        let result = _compileSource(source, bfCopy, isMultiFile, false, opts.verbose)
+
+        if not result.success {
+            print($" FAIL {bfCopy} (compilation error)")
+            for err in result.errors {
+                print($"  error: {err}")
+            }
+            failCount += 1
+        } else {
+            writeOutputFiles(result, outputDir)
+
+            let buildOk = runCargoBuild(outputDir, true)
+            if not buildOk {
+                print($" FAIL {bfCopy} (cargo build --release failed)")
+                failCount += 1
+            } else {
+                let projectName = fileToProjectName(bfCopy)
+                let binaryPath = _buildBinaryPath(outputDir, true, projectName)
+
+                let t0 = Date.timestamp()
+                let output = Process.exec(binaryPath) or ""
+                let t1 = Date.timestamp()
+                let elapsed = t1 - t0
+
+                if output != "" {
+                    let outputLines = output.split("\n")
+                    for line in outputLines {
+                        if line != "" {
+                            print($"  {line}")
+                        }
+                    }
+                }
+                print($" BENCH {bfCopy} — {elapsed} ms")
+                okCount += 1
+            }
+        }
+    }
+
+    print("")
+    print("──────────────────────────────────────────────────")
+    let total = okCount + failCount
+    print($"Bench:  {okCount} ran, {failCount} failed, {total} total")
 }
 
 // =====================================================================
@@ -1574,5 +1686,9 @@ main() {
 
     if opts.command == "test" {
         _runTestCommand(opts)
+    }
+
+    if opts.command == "bench" {
+        _runBenchCommand(opts)
     }
 }
