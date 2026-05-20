@@ -1334,7 +1334,7 @@ extend RustEmitter {
 **LSP (puede ir más tarde):**
 - [x] Workspace symbols mostrando `Foo (extension)` por archivo (~50 líneas). **DONE 2026-05-19** — `workspace/symbol` handler en `liva-tools/src/lsp/server.rs:818`, usa `workspace_index.all_symbols()` con filtro substring case-insensitive, cap 500 resultados. Verificado por smoke test (response trae `Token` kind=5 + `lookupKeyword/main/tokenKindName` kind=12).
 - [x] Document outline para `extend` (~20 líneas). **DONE 2026-05-19** — `textDocument/documentSymbol` handler emite `DocumentSymbolResponse::Flat` desde `workspace_index.get_file_symbols(uri)`. `ServerCapabilities` ya anuncia ambos providers.
-- [ ] Incremental invalidation cross-file cuando cambia una extensión (~30 líneas).
+- [x] Incremental invalidation cross-file cuando cambia una extensión (~30 líneas). **DONE 2026-05-20** — `WorkspaceIndex::index_file` ahora invoca `remove_file(uri)` antes de reindexar si la URI ya estaba presente. Sin esto, cada `did_change` duplicaba los símbolos del archivo en el índice global, corrompiendo respuestas `workspace/symbol` después de unos pocos keystrokes. Test de regresión `test_reindex_does_not_duplicate_symbols` en `liva-tools/src/lsp/workspace.rs` (3/3 unit tests verdes).
 
 ### Fase D — Portar fixes (orden recomendado, fáciles primero)
 - [x] **B151** — string escape `\"` dentro de `${...}` (gen-2 parser ya maneja `\"`, `\\`, `\n`, `\r`, `\t` en placeholder; verificado 2026-05-07 con `print($"a:{m.get(\"apple\")}")` → `a:1`)

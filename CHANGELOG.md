@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Fixed — LSP workspace index leaks symbols across re-indexing
+
+- `WorkspaceIndex::index_file` now removes the file's previous symbol entries
+  from the global `symbols` map before re-indexing. Previously, every
+  `did_change`/`did_save` appended new entries without dropping stale ones,
+  so the global `workspace/symbol` results would grow unbounded and return
+  duplicates after a few keystrokes.
+- Added regression test `test_reindex_does_not_duplicate_symbols` in
+  `liva-tools/src/lsp/workspace.rs` that re-indexes the same file twice and
+  asserts symbol count is unchanged and `lookup_global("greet")` returns a
+  single entry.
+
 ### Added — `livac repl` — interactive REPL session
 
 - New CLI subcommand `livac repl` starts an interactive Read-Eval-Print loop.

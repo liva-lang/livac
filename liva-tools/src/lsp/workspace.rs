@@ -180,8 +180,19 @@ impl WorkspaceIndex {
         }
     }
 
-    /// Indexes a file and adds its symbols to the global index
+    /// Indexes a file and adds its symbols to the global index.
+    ///
+    /// If the file was already indexed, its previous symbols are removed
+    /// from the global index before the new ones are added. This keeps
+    /// re-indexing on edit (did_change / did_save) idempotent — without
+    /// this step, every keystroke would duplicate the file's symbols in
+    /// `self.symbols` and corrupt workspace/symbol results.
     pub fn index_file(&self, uri: Url, ast: &Program, source: &str) {
+        // Drop any stale entries from a previous index of this file.
+        if self.file_symbols.contains_key(&uri) {
+            self.remove_file(&uri);
+        }
+
         // Build symbol table for this file
         let symbol_table = SymbolTable::from_ast(ast, source);
 
@@ -293,5 +304,35 @@ mod workspace_index_tests {
     fn test_empty_lookup() {
         let index = WorkspaceIndex::new();
         assert!(index.lookup_global("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_reindex_does_not_duplicate_symbols() {
+        // Re-indexing the same file twice should leave the global symbol
+        // table in the same state as a single index pass. Before the
+        // invalidation fix, every keystroke would duplicate symbols.
+        let source = "greet() { print(\"hi\") }\n";
+        let tokens = livac::lexer::tokenize(source).expect("lex");
+        let ast = livac::parser::parse(tokens, source).expect("parse");
+
+        let index = WorkspaceIndex::new();
+        let uri = Url::parse("file:///tmp/reindex.liva").unwrap();
+
+        index.index_file(uri.clone(), &ast, source);
+        let first_count = index.symbol_count();
+        let first_files = index.file_count();
+        assert!(first_count >= 1, "expected at least one symbol after first index");
+        assert_eq!(first_files, 1);
+
+        // Re-index the same file: should not grow the symbol count.
+        index.index_file(uri.clone(), &ast, source);
+        assert_eq!(index.symbol_count(), first_count);
+        assert_eq!(index.file_count(), 1);
+
+        // workspace/symbol must return each symbol exactly once.
+        let greet = index
+            .lookup_global("greet")
+            .expect("greet should be globally indexed");
+        assert_eq!(greet.len(), 1, "duplicate workspace-symbol entries after reindex");
     }
 }
