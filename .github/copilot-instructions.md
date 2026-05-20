@@ -6,7 +6,7 @@
 > **Tests:** 528+ cargo + 12/12 cli_subcmds + gen-2 ≡ gen-3 idempotent  
 > **Self-hosting:** ✅ FULLY SELF-HOSTED. Gen-2 ships as canonical compiler; `liva-tools` (fmt/lint/lsp) dispatched from Liva.  
 > **Rama activa:** `feat/self-hosting-v2` (not yet merged to `main`; tag `v2.1.0` lives on this branch)  
-> **Estado:** **v2.1.0 RELEASED** 🎉 (2026-05-20). Phase F closed: F.1 (runtime carve-out) ✅, F.2 (liva-tools crate split) ✅, F.3 (`livac/bootstrap/` FROZEN) ✅, F.4 (`make livac` build flow) ✅, F.4 follow-up (self-host dispatch via `rust { }`) ✅, F.5 (CI workspace-aware) ✅, F.6 (annotated `v2.1.0` tag pushed) ✅. Workspace: `bootstrap/` (livac-bootstrap, FROZEN), `liva-tools/` (formatter+linter+LSP), `compiler/` (self-host canónico).
+> **Estado:** **v2.2.0 RELEASED** 🎉 (2026-05-20). Added stdlib YAML/TOML modules (reuse JSON `Value` infra), fixed `.length` codegen on JSON/YAML/TOML Values (now emits `JsonValueExt.length()` instead of nonexistent `.len()`), aligned Makefile gen-2 staging path with `rebuild_selfhost.sh`. Built atop v2.1 Phase F (bootstrap+liva-tools+compiler workspace split, FROZEN Rust bootstrap, self-hosted gen-2 canonical). Workspace: `bootstrap/` (livac-bootstrap, FROZEN), `liva-tools/` (formatter+linter+LSP), `compiler/` (self-host canónico).
 > **Última actualización:** 2026-05-20
 
 ---
