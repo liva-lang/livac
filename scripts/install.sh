@@ -101,7 +101,7 @@ get_version() {
 
     if [[ -z "$version" ]]; then
         # Fetch latest release from GitHub API
-        info "Checking latest version..."
+        info "Checking latest version..." >&2
         version=$(curl -sSf "https://api.github.com/repos/${REPO}/releases/latest" \
             | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": "\(.*\)".*/\1/')
 
