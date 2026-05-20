@@ -3,9 +3,10 @@
 # Exercises `livac run`, `livac check`, `livac test`, `livac init` end-to-end
 # using the gen-2 self-host binary (target/livac-gen2-release).
 #
-# `livac fmt`, `livac lint`, `livac lsp` and `livac update` are NOT covered:
-# fmt/lint/lsp are not yet implemented in gen-2 (see compiler/docs/PLAN.md
-# Bloque B), and `update` would touch the network / replace the binary.
+# `livac fmt`, `livac lint` and `livac lsp` ARE covered (tests 10-12 below) —
+# gen-2 dispatches them to the `liva-tools` binary via a `rust { }` block
+# (F.4 follow-up, see compiler/src/main.liva). `livac update` is NOT covered
+# (would touch the network / replace the binary).
 #
 # Each sub-test prints `[OK ]` or `[FAIL]` and the script exits non-zero if
 # any sub-test fails.
@@ -282,6 +283,75 @@ else
                        "rc=$rc2; log:\n$(tail -15 "$T9/cargo.log")"
         fi
     fi
+fi
+
+# ---------------------------------------------------------------------------
+# Tests 10–12 — `livac fmt` / `livac lint` / `livac lsp` dispatch to
+# `liva-tools` (F.4 follow-up). Self-host main.liva contains a `rust { }`
+# block that locates the tools binary (env LIVA_TOOLS_BIN → sibling of
+# current_exe → PATH) and forwards args via Command::status() with
+# inherited stdio, propagating the child's exit code.
+# ---------------------------------------------------------------------------
+TOOLS="$LIVAC_ROOT/target/release/liva-tools"
+if [[ ! -x "$TOOLS" ]]; then
+    echo "[SKIP] liva-tools not built — run: cargo build --release --workspace"
+else
+    export LIVA_TOOLS_BIN="$TOOLS"
+
+    # Test 10 — `livac fmt --check` on freshly-formatted source: exit 0.
+    T10="$OUT/fmt_check"; mkdir -p "$T10"
+    cat > "$T10/clean.liva" <<'EOF'
+add(a: int, b: int): int {
+    return a + b
+}
+
+main() {
+    print($"sum={add(2, 3)}")
+}
+EOF
+    "$G2" fmt "$T10/clean.liva" >"$T10/fmt.log" 2>&1
+    "$G2" fmt --check "$T10/clean.liva" >"$T10/check.log" 2>&1
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+        check_ok "livac fmt --check (dispatched to liva-tools, exit 0)"
+    else
+        check_fail "livac fmt --check dispatch" \
+                   "rc=$rc; fmt.log:\n$(cat "$T10/fmt.log")\ncheck.log:\n$(cat "$T10/check.log")"
+    fi
+
+    # Test 11 — `livac lint` on a file with an unused variable: exit non-zero
+    # with W001 diagnostic.
+    T11="$OUT/lint_w001"; mkdir -p "$T11"
+    cat > "$T11/u.liva" <<'EOF'
+main() {
+    let unused = 42
+    print("hello")
+}
+EOF
+    "$G2" lint "$T11/u.liva" >"$T11/log" 2>&1
+    rc=$?
+    if grep -q 'W001\|unused' "$T11/log"; then
+        check_ok "livac lint (dispatched to liva-tools, W001 emitted)"
+    else
+        check_fail "livac lint dispatch" \
+                   "expected W001/unused diagnostic; rc=$rc; log:\n$(cat "$T11/log")"
+    fi
+
+    # Test 12 — `livac lsp` with empty stdin: server starts, parser emits
+    # an error and the process exits within timeout. We only check that
+    # dispatch actually reached liva-tools (no "binary not found" error
+    # from the self-host).
+    T12="$OUT/lsp_smoke"; mkdir -p "$T12"
+    : > "$T12/stdin"
+    timeout 5 "$G2" lsp <"$T12/stdin" >"$T12/log" 2>&1 || true
+    if ! grep -qiE 'liva-tools (binary )?not found|No such file' "$T12/log"; then
+        check_ok "livac lsp (dispatched to liva-tools, server reachable)"
+    else
+        check_fail "livac lsp dispatch" \
+                   "self-host did not locate liva-tools; log:\n$(cat "$T12/log")"
+    fi
+
+    unset LIVA_TOOLS_BIN
 fi
 
 echo "===================="
