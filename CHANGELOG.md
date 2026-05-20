@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
-## [Unreleased] — post-rc1 work
+## [2.1.0] — 2026-05-20 — Phase F: workspace split + self-hosted tooling 🎉
+
+Tag `v2.1.0` pushed to origin (annotated; precedent: `v2.0.0-rc1`).
+Liva is now **fully self-hosted**: the binary that ships is gen-2
+(compiled from `compiler/src/*.liva` by the FROZEN Rust bootstrap),
+and all user-facing tooling (`fmt`/`lint`/`lsp`) is dispatched from
+Liva to a separate `liva-tools` workspace crate.
 
 ### Added — Phase F (Rust bootstrap cut, v2.1)
 - **F.2 — `liva-tools` crate carve-out** (2026-05-19). Moved
@@ -62,6 +68,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `liva-tools/Cargo.toml` instead of the workspace root. Repo passes
   `cargo fmt --all --check` after a one-shot reformat across
   bootstrap + liva-tools (~3,100 lines, no semantic changes).
+- **F.6 — `v2.1.0` tag pushed** (2026-05-20). Annotated tag (no GPG
+  key configured for the repo — `v2.0.0-rc1` was also annotated).
+- **cli_subcmds regression coverage for fmt/lint/lsp dispatch**
+  (2026-05-20). Three new sub-tests in
+  `compiler/tests/cli_subcmds/run.sh`:
+  10. `livac fmt --check` on freshly-formatted source → exit 0
+  11. `livac lint` on a file with W001 unused-var → diagnostic emitted
+  12. `livac lsp` with empty stdin → server reachable (no
+      "liva-tools not found" from the self-host dispatcher)
+  Tests are hermetic (use `LIVA_TOOLS_BIN` explicit) and skip cleanly
+  if `target/release/liva-tools` is missing. Gate at 12/12 PASS.
+
+### Fixed — Phase F polish
+- **`make help` line concat** (2026-05-20). Three `@echo` recipes had
+  been joined by literal tabs on a single line, making shell pass the
+  later echoes as arguments to the first one. Split into three lines.
+- **`ROADMAP.md` Last Updated** bumped from 2026-05-04 (pre-Phase F)
+  to 2026-05-20 (matches current Phase F status banner).
 
 ### Added — pre-F.2
 

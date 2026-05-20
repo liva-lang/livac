@@ -1,12 +1,12 @@
 # 🔧 Liva Compiler Context
 
 > **Proyecto:** livac - El compilador de Liva  
-> **Versión:** v2.0.0-dev (tag: v1.2.0)  
-> **Lenguaje:** Rust (bootstrap) + Liva (self-hosting)  
-> **Tests:** 518 passing  
-> **Self-hosting:** Phase 7 idempotente; Phase 8 ✅; Phase 9 ✅ (9.1–9.6, 9.8, 9.9, 9.10 done; 9.7/9.11 absorbidos por Fase 10) — idempotencia gen-2≡gen-3 binario, bench oficial en `benchmarks/RESULTS.md`  
-> **Rama activa:** `feat/self-hosting-v2`  
-> **Estado:** **v2.1-rc — PHASE F DONE (pre-tag)** ✅ (2026-05-20). Phase F.1 (runtime carve-out) ✅, F.2 (liva-tools crate split) ✅, F.3 (`livac/src/` → `livac/bootstrap/src/`, Rust crate frozen) ✅, F.4 (`make livac` canonical build flow + idempotence) ✅, F.4 follow-up (self-host `main.liva` dispatches `fmt`/`lint`/`lsp` to `liva-tools` via inline `rust { }` block — bootstrap untouched) ✅, F.5 (CI/release workspace-aware + `cargo fmt --all` clean, ~3.1k LOC) ✅. Sólo queda F.6 (signed `v2.1.0` tag — espera autorización explícita del owner). Workspace: `bootstrap/` (livac-bootstrap, FROZEN), `liva-tools/` (formatter+linter+LSP), `compiler/` (self-host canónico). Rama activa `feat/self-hosting-v2`.
+> **Versión:** **v2.1.0** (tag pushed 2026-05-20)  
+> **Lenguaje:** Rust (bootstrap, FROZEN) + Liva (self-hosting)  
+> **Tests:** 528+ cargo + 12/12 cli_subcmds + gen-2 ≡ gen-3 idempotent  
+> **Self-hosting:** ✅ FULLY SELF-HOSTED. Gen-2 ships as canonical compiler; `liva-tools` (fmt/lint/lsp) dispatched from Liva.  
+> **Rama activa:** `feat/self-hosting-v2` (not yet merged to `main`; tag `v2.1.0` lives on this branch)  
+> **Estado:** **v2.1.0 RELEASED** 🎉 (2026-05-20). Phase F closed: F.1 (runtime carve-out) ✅, F.2 (liva-tools crate split) ✅, F.3 (`livac/bootstrap/` FROZEN) ✅, F.4 (`make livac` build flow) ✅, F.4 follow-up (self-host dispatch via `rust { }`) ✅, F.5 (CI workspace-aware) ✅, F.6 (annotated `v2.1.0` tag pushed) ✅. Workspace: `bootstrap/` (livac-bootstrap, FROZEN), `liva-tools/` (formatter+linter+LSP), `compiler/` (self-host canónico).
 > **Última actualización:** 2026-05-20
 
 ---

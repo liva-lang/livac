@@ -4,10 +4,10 @@
 > direction.  
 > **Companion docs:** `BACKLOG.md` (open tasks),
 > `CHANGELOG.md` (per-version released changes).  
-> **Current Version:** v2.0.0-dev (tag: v1.2.0)  
-> **Status:** v2.0 RELEASE READY — Phase 10 + Phase 11 (hardening)
-> closed; 5/5 self-host gates green; 528+ cargo tests; gen-2 idempotent
-> with bootstrap.  
+> **Current Version:** v2.1.0 (tag pushed 2026-05-20)  
+> **Status:** v2.1 RELEASED — Phase F closed; Liva is fully self-hosted
+> (gen-2 ships, bootstrap FROZEN); 12/12 cli_subcmds gate; 528+ cargo
+> tests; gen-2 ≡ gen-3 idempotent.  
 > **Last Updated:** 2026-05-20
 
 ---
@@ -63,27 +63,25 @@ The roadmap is organized into focused phases:
 > Gauntlet 7/7 + ai/* 9/9 GREEN. Cycle 42 (modularización codegen.liva
 > en N archivos) pendiente.
 
-> **2026-05-19 — Phase F NEARLY DONE (v2.1 cut imminent)**
-> Five of six Phase F slices landed today on `feat/self-hosting-v2`:
+> **2026-05-20 — Phase F DONE — Liva v2.1.0 RELEASED 🎉**
+> All six Phase F slices landed on `feat/self-hosting-v2` and tag
+> `v2.1.0` is pushed to origin. Liva is now **fully self-hosted**:
 > - **F.1** ✅ runtime carve-out (dead code removal + `include_str!` template).
 > - **F.2** ✅ `liva-tools` crate split — formatter, linter, LSP server live
->   in their own workspace member; `livac` binary subprocess-dispatches
->   `fmt`/`lint`/`lsp` to it. ~5.2k LOC moved.
+>   in their own workspace member. ~5.2k LOC moved.
 > - **F.3** ✅ Rust bootstrap moved to `livac/bootstrap/`, package renamed
 >   `livac-bootstrap`, marked FROZEN. Workspace-only `livac/Cargo.toml`.
 > - **F.4** ✅ `make livac` orchestrates the canonical build:
 >   `cargo --workspace` → `rebuild_selfhost.sh` (gen-2 ≡ gen-3) → stage
 >   gen-2 at `target/livac-gen2-release`.
-> - **F.4 follow-up** ✅ (2026-05-20) Self-host `main.liva` dispatches
+> - **F.4 follow-up** ✅ Self-host `main.liva` dispatches
 >   `fmt`/`lint`/`lsp` to `liva-tools` via an inline `rust { }` block
->   with inherited stdio. No new `Process.spawn_inherit()` builtin
->   needed — bootstrap stays FROZEN. Gen-2 idempotence preserved;
->   `selfhost_apps`/`multifile_apps`/`cli_subcmds` gates GREEN.
->   Unblocks the eventual swap of user-facing `target/release/livac`.
+>   with inherited stdio — no new runtime builtin, bootstrap stays
+>   FROZEN. Regression coverage in `cli_subcmds` tests 10–12.
 > - **F.5** ✅ CI/release workflows are workspace-aware; `cargo fmt --all`
 >   clean across bootstrap + liva-tools.
-> - **F.6** ⏳ Only the signed `v2.1.0` tag remains. Awaiting explicit
->   owner authorization (release act).
+> - **F.6** ✅ tag `v2.1.0` annotated + pushed (precedent: `v2.0.0-rc1`
+>   was also annotated; no GPG key configured for the repo).
 >
 > **2026-04-30 — Decisión estratégica: v2.1 Self-Hosted Migration**
 > A partir de hoy el bootstrap Rust queda **CONGELADO** post-`ba7f263`.

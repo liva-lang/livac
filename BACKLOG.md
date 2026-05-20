@@ -1364,9 +1364,9 @@ extend RustEmitter {
 - [x] **F.3** — Freeze bootstrap (`livac/src/` → `livac/bootstrap/src/`, package `livac-bootstrap`). ✅ 2026-05-19
 - [x] **F.4** — `make livac` canonical build flow (bootstrap + tools + gen-2 idempotence). ✅ 2026-05-19
 - [x] **F.5** — CI/release workflows workspace-aware + `cargo fmt --all` clean. ✅ 2026-05-19
-- [ ] **F.6** — `git tag v2.1.0 -s` (signed). ⏳ Awaiting explicit owner authorization.
+- [x] **F.6** — `git tag v2.1.0` (annotated; precedent: `v2.0.0-rc1` was also annotated, no GPG key configured for the repo). ✅ 2026-05-20
 - [x] **F.4 follow-up** — Self-host `main.liva` now dispatches `fmt`/`lint`/`lsp` to the `liva-tools` binary via an inline `rust { }` block (same `LIVA_TOOLS_BIN` → sibling → PATH lookup as the Rust bootstrap, with inherited stdio so LSP JSON-RPC works end-to-end). No new `Process.spawn_inherit()` runtime builtin needed — bootstrap stays FROZEN. Gen-2 rebuild idempotent + `selfhost_apps`/`multifile_apps`/`cli_subcmds` gates GREEN + cargo test workspace clean. Regression coverage added: `cli_subcmds` tests 10-12 exercise fmt/lint/lsp dispatch directly. ✅ 2026-05-20
-- [ ] **v2.1 Release: Liva is fully self-hosted.** ⏳ Gated on F.6.
+- [x] **v2.1 Release: Liva is fully self-hosted.** ✅ 2026-05-20 — tag `v2.1.0` pushed.
 
 ---
 
