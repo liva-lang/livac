@@ -92,7 +92,7 @@ maintainer-scripts = "../scripts/deb/"
 
 [package.metadata.generate-rpm]
 assets = [
-    { source = "../target/release/livac", dest = "/usr/bin/livac", mode = "0755" },
+    { source = "../target/x86_64-unknown-linux-gnu/release/livac", dest = "/usr/bin/livac", mode = "0755" },
     { source = "../skills/liva-lang/SKILL.md", dest = "/usr/share/livac/skills/liva-lang/SKILL.md", mode = "0644" },
     { source = "../scripts/install-skills.sh", dest = "/usr/share/livac/scripts/install-skills.sh", mode = "0755" },
     { source = "../docs/README.md", dest = "/usr/share/livac/docs/README.md", mode = "0644" },
