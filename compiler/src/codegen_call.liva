@@ -203,7 +203,7 @@ extend RustEmitter {
             this._write("println!(\"" + fmtParts + "\"")
             for a in args {
                 this._write(", ")
-                this._emitExpr(a)
+                this._emitFormatArg(a)
             }
             this._write(")")
         }
@@ -259,7 +259,7 @@ extend RustEmitter {
             this._write("println!(\"" + fmtParts + "\"")
             for a in args {
                 this._write(", ")
-                this._emitExpr(a)
+                this._emitFormatArg(a)
             }
             this._write(")")
         }

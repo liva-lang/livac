@@ -402,20 +402,19 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - `expect(maybe).toBeNull()` ya genera `assert!(maybe.is_none())` correctamente.
 - Con B111 fixed, `expect(maybe).toBe(null)` también funciona.
 
-### GAP-002 — `or fail` en test functions no testeable 🔷
-- `propagate(a, b): number { let r = divide(a, b) or fail "msg"; return r }` — la función es fallible, pero testing de errores requiere error binding.
-- Con B101 y B102 fixed, el error binding ahora funciona. `toThrow()` existe para panic-based testing.
-- Pendiente: verificar que `or fail` + error binding funciona end-to-end.
+### GAP-002 — `or fail` en test functions ✅ RESOLVED (2026-05-20)
+- `propagate(a, b): number { let r = divide(a, b) or fail "msg"; return r }` — la función es fallible, error binding funciona end-to-end.
+- **Fix gen-2 v2.2.0:** `_emitPrintCall` y `_emitPrintlnCall` ahora usan `_emitFormatArg` (no `_emitExpr`) en multi-arg, así que `print("err:", err)` con `err: Option<liva_rt::Error>` emite `err.as_ref().map(|e| format!("{}", e)).unwrap_or_default()` en lugar de la variable cruda (que no impl Display).
+- **Repro verificado:** `examples/gap002` (divide+propagate con or fail, error binding, print("err2 detected:", err2)) compila y ejecuta limpio.
 
 ### GAP-003 — `Set.union()` / `Set.intersection()` devuelve HashSet crudo 🔶
 - El resultado pierde los wrappers de Liva (`.has()`, `.size()`, etc.).
 - Debería devolver un Set de Liva con todos los métodos disponibles.
 
-### GAP-004 — `print(a, b, ...)` con varios argumentos diverge entre bootstrap y gen-2 🔶
+### GAP-004 — `print(a, b, ...)` con varios argumentos diverge entre bootstrap y gen-2 ✅ RESOLVED (2026-05-20)
 - **Repro:** `print("count:", 3)` emite `count:3` en bootstrap pero `count: 3` en gen-2.
 - **Análisis:** Bootstrap concatena argumentos sin separador, gen-2 inserta espacio (estilo Python).
-- **Workaround actual:** usar string interpolation `print($"count:{x}")` en código portable.
-- **Decisión pendiente:** unificar al estilo Python (separador espacio) para consistencia. Afecta `complex_apps` snapshots si se cambia.
+- **Decisión:** gen-2 es el compilador canónico (post-Phase F). El bootstrap Rust está FROZEN y solo sirve para el seed. La semántica correcta es la de gen-2 (Python-style con separador espacio). No se cambia bootstrap por contrato de inmutabilidad.
 
 ### GAP-005 — Gen-2 lag en patrones avanzados de error handling y Map<K,V> (V no-trivial) 🔶
 - **Síntomas observados al ejecutar `selfhost_apps/app8_orders.liva` y `app9_graph.liva` con gen-2:**
@@ -426,10 +425,9 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
   - Error binding `e.message` post-narrowing emite `.get_field("message")` (igual que bootstrap antes de B130).
 - **Plan:** mirror las correcciones B127–B133 en `compiler/src/codegen.liva` cuando se decida priorizar paridad. Mientras tanto los apps que disparan estos casos viven en `compiler/tests/selfhost_apps/` (no se ejecutan contra gen-2).
 
-### GAP-006 — String interpolation no admite escapes `\"` dentro de `{...}` 🔷
-- **Repro:** `print($"k:{m.get(\"key\")}")` produce literalmente `k:{m.get(\"key\")}` (no expande la interpolación).
-- **Workaround:** asignar el resultado a una variable antes: `let v = m.get("key"); print($"k:{v}")`.
-- **Pendiente:** lexer/parser de string interpolation debería entender escapes dentro del bloque `{...}` o permitir comillas dobles sin escape.
+### GAP-006 — String interpolation no admite escapes `\"` dentro de `{...}` ✅ RESOLVED (2026-05-20)
+- **Repro:** `print($"k:{m.get(\"key\")}")` ahora expande correctamente la interpolación con escapes dentro del bloque.
+- **Verificado:** gen-2 v2.2.0 ejecuta `print($"k:{m.get(\"key\")}")` y `print($"q={\"hi\"}")` produciendo el output esperado. La regresión silenciosa que motivó este GAP fue resuelta como side-effect de fixes anteriores del lexer.
 
 ### GAP-007 — Sin sintaxis para tipos función ni inferencia de closures-as-return ✅ FIXED (Round 10, 2026-04-XX)
 - **Repro 1 (anotación):** `makeAdder(x: number): (number) => number { ... }` ⇒ E2000 "Expected expression" en el parser. La gramática de `parse_type` no contempla `(T) => U` ni `fn(T) -> U`.
