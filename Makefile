@@ -24,10 +24,13 @@ build-bootstrap:
 
 # Step 2 — self-host gen-2 build + idempotence check via rebuild_selfhost.sh.
 # Stages gen-2 at target/livac-gen2-release so all run_all.sh gates pick it up.
+# Note: rebuild_selfhost.sh hardcodes its staging dirs to $HOME/tmp/gen{1,2,3}_build
+# (independent of TMPDIR so the on-disk gen-2 sources persist across `make clean`
+# of /tmp and aren't lost to tmpfs rotation), so the copy step uses that same path.
 build-selfhost: build-bootstrap
 	@echo "🚀 Building self-host gen-2 (canonical Liva compiler)..."
-	@TMPDIR=$${TMPDIR:-/tmp} bash compiler/tests/rebuild_selfhost.sh
-	@cp $${TMPDIR:-/tmp}/gen2_build/target/release/main target/livac-gen2-release
+	@bash compiler/tests/rebuild_selfhost.sh
+	@cp $$HOME/tmp/gen2_build/target/release/main target/livac-gen2-release
 	@echo "✓ Canonical gen-2 staged at target/livac-gen2-release"
 
 # Compatibility alias for pre-F.4 muscle memory — Rust-only build.
