@@ -190,13 +190,29 @@ extend RustEmitter {
                 if isSwitchStmt {
                     switch expr {
                         Expr.SwitchExpr(disc, arms) => {
-                            this._writeIndent()
-                            let savedFlag = this._switchInStmtPosition
-                            this._switchInStmtPosition = true
-                            this._emitSwitchExpr(disc, arms)
-                            this._switchInStmtPosition = savedFlag
-                            this._write(";")
-                            this._newline()
+                            // B139 — when a switch is the tail expression of a fallible
+                            // function body, emit `return Ok(match ...)` so non-fail arms
+                            // auto-wrap their value.  `fail` arms already emit
+                            // `return Err(...)` with type `!` which coerces to any type.
+                            let isTailFallible = this._stmtIsLastInBlock && this._currentReturnFallible && !this._inExprBlock
+                            if isTailFallible {
+                                this._writeIndent()
+                                this._write("return Ok(")
+                                let savedFlag = this._switchInStmtPosition
+                                this._switchInStmtPosition = false
+                                this._emitSwitchExpr(disc, arms)
+                                this._switchInStmtPosition = savedFlag
+                                this._write(");")
+                                this._newline()
+                            } else {
+                                this._writeIndent()
+                                let savedFlag = this._switchInStmtPosition
+                                this._switchInStmtPosition = true
+                                this._emitSwitchExpr(disc, arms)
+                                this._switchInStmtPosition = savedFlag
+                                this._write(";")
+                                this._newline()
+                            }
                         }
                     }
                     return

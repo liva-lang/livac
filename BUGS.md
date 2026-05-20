@@ -271,10 +271,11 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix:** `Expr::Fail` ahora emite sólo `return Err(liva_rt::Error::from(...))` (sin indent ni `;`). El stmt context añade `;` por separado.
 - **Test:** `selfhost_apps/app16_fsm.liva`.
 
-### B139 — switch arms en función `T!` no auto-envuelven valores no-fail en `Ok(...)` 🔶 OPEN
-- **Repro:** `transition(s, a): State! { return switch s { State.Idle => switch a { Action.Start => State.Running, _ => fail "..." } ... } }` → arm `State.Running` queda como `State::Running` pero la función espera `Result<State, Error>`. Sólo el ternary-with-fail (línea 7920) wrappea automáticamente.
-- **Workaround:** reemplazar el switch externo por if-else encadenado con `return State.Running` explícito (ver `selfhost_apps/app16_fsm.liva`).
-- **Pendiente:** detectar en `generate_switch_expr` cuando alguna arm contiene `fail` y wrappear las otras arms en `Ok(...)`. Misma idea que el ternary B127.
+### B139 — switch arms en función `T!` no auto-envuelven valores no-fail en `Ok(...)` ✅ FIXED (2026-05-20 gen-2)
+- **Repro:** `transition(s, a): State! { switch s { State.Idle => switch a { Action.Start => State.Running, _ => fail "..." } ... } }` → arm `State.Running` quedaba como `State::Running` pero la función espera `Result<State, Error>`. El match se emitía en statement position y descartaba su valor.
+- **Fix:** En `codegen_stmt.liva`, cuando el `Stmt.ExprStmt(Expr.SwitchExpr(...))` es la última sentencia en un bloque (`_stmtIsLastInBlock = true`) y la función es fallible (`_currentReturnFallible = true`) y no estamos dentro de un bloque de expresión anidado (`!_inExprBlock`), el switch se emite en expression-position envuelto en `return Ok(...)`. Los arms con `fail` producen `return Err(...)` de tipo `!` que coacciona a cualquier tipo en Rust.
+- **Test:** `selfhost_apps/app16_fsm.liva` (el workaround if-else puede revertirse a switch); test rápido `/tmp/test_b139b.liva`.
+- **Gates:** selfhost_apps 22/22, regression 19/19, cli_subcmds 13/13.
 
 ### B140 — `or <default>` propagaba fallibilidad al caller incorrectamente ⚡ ✅ FIXED (bootstrap)
 - **Repro:** `safe(x): number { let n = fail_fn(x) or 0; return n + 1 }`; el caller recibía `E0701: 'safe' can fail` aunque el `or 0` ya consume el error localmente.
@@ -407,9 +408,12 @@ Estos bugs fueron detectados Y corregidos directamente en el codegen:
 - **Fix gen-2 v2.2.0:** `_emitPrintCall` y `_emitPrintlnCall` ahora usan `_emitFormatArg` (no `_emitExpr`) en multi-arg, así que `print("err:", err)` con `err: Option<liva_rt::Error>` emite `err.as_ref().map(|e| format!("{}", e)).unwrap_or_default()` en lugar de la variable cruda (que no impl Display).
 - **Repro verificado:** `examples/gap002` (divide+propagate con or fail, error binding, print("err2 detected:", err2)) compila y ejecuta limpio.
 
-### GAP-003 — `Set.union()` / `Set.intersection()` devuelve HashSet crudo 🔶
-- El resultado pierde los wrappers de Liva (`.has()`, `.size()`, etc.).
-- Debería devolver un Set de Liva con todos los métodos disponibles.
+### GAP-003 — `Set.union()` / `Set.intersection()` devuelve HashSet crudo ✅ RESOLVED (2026-05-20)
+- El resultado se collect a `std::collections::HashSet<_>`, y `codegen_vardecl` detecta
+  "HashSet" en la línea emitida y registra la variable en `_setVars` automáticamente.
+  Todos los métodos de Set (`.has()`, `.size()`, `.add()`, `.forEach()`, `.difference()`, etc.)
+  funcionan sobre el resultado. Verificado con test `/tmp/test_set_gap3.liva` — union/intersection/difference
+  size + has funcionan correctamente.
 
 ### GAP-004 — `print(a, b, ...)` con varios argumentos diverge entre bootstrap y gen-2 ✅ RESOLVED (2026-05-20)
 - **Repro:** `print("count:", 3)` emite `count:3` en bootstrap pero `count: 3` en gen-2.
