@@ -224,6 +224,9 @@ RustEmitter {
     // `_emitServerRoute` to wrap each route in `{ let v = v.clone(); ... }` so
     // each async closure gets its own Arc clone (bootstrap parity).
     _dbVars: Map<string, bool>
+    // WS module: Vars assigned to `WS.connect(...)` (tungstenite WebSocket).
+    // Detected at let init; used by _emitMethodCall to dispatch ws.send/recv/close.
+    _wsVars: Map<string, bool>
     // A.3: when emitting an HTTP route handler lambda body, name of the
     // request param (lambda's first param). Inside the body, `req.params`
     // → `__params`, `req.body` → `body.clone()`,
@@ -308,6 +311,7 @@ RustEmitter {
         this._constructorAssignedFields = Map {}
         this._serverVars = Map {}
         this._dbVars = Map {}
+        this._wsVars = Map {}
         this._serverRequestParam = ""
         this._mainNeedsAsync = false
         this._taskHandleVars = Map {}

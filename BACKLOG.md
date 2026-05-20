@@ -1376,7 +1376,7 @@ extend RustEmitter {
 
 - [ ] `livac doc` — generación de documentación desde `///` comments
 - [ ] `livac test --coverage` — cobertura de tests
-- [ ] WebSockets — módulo `WS` (tokio-tungstenite)
+- [x] WebSockets — módulo `WS` (tungstenite sync) ✅ 2026-05-20
 - [x] YAML/TOML parsing — módulos nuevos (crates `serde_yaml`/`toml`) (2026-05-19) — reúsan `serde_json::Value`, indexación + JsonValueExt aplican igual que JSON; smoke test `compiler/tests/selfhost_apps/app21_yaml_toml.liva`; docs `docs/language-reference/stdlib/{yaml,toml}.md`.
 - [x] `livac bench` — benchmarking built-in (✅ 2026-05-20: walks `*.bench.liva`, compiles in release mode, times execution via `Date.timestamp()`, summary line `BENCH <file> — XXX ms`. CLI smoke test 13 in `cli_subcmds/run.sh`.)
 - [ ] REPL — `livac repl` (aplazado desde v1.8)

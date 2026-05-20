@@ -18,7 +18,7 @@ extend RustEmitter {
                       usesHttp: bool, usesDb: bool, usesJson: bool,
                       usesChrono: bool, usesRandom: bool, usesCrypto: bool,
                       usesRayon: bool, usesHttpClient: bool,
-                      usesYaml: bool, usesToml: bool): string {
+                      usesYaml: bool, usesToml: bool, usesWs: bool): string {
         let lines: [string] = []
         lines.push("[workspace]")
         lines.push("")
@@ -101,6 +101,11 @@ extend RustEmitter {
         // TOML — same Value-reuse pattern as YAML.
         if usesToml {
             lines.push("toml = \"0.8\"")
+        }
+
+        // WebSockets — tungstenite sync client/server.
+        if usesWs {
+            lines.push("tungstenite = { version = \"0.24\", features = [\"native-tls\"] }")
         }
 
         return lines.join("\n")

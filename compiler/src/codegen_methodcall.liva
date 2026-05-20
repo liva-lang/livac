@@ -44,6 +44,34 @@ extend RustEmitter {
             }
         }
 
+        // WS module: ws.send / ws.recv / ws.close where ws was from WS.connect()
+        let isWsCall = false
+        switch obj {
+            Expr.Identifier(wsName) => {
+                let wsSan = this._sanitizeName(wsName)
+                if this._wsVars.has(wsSan) { isWsCall = true }
+            }
+        }
+        if isWsCall {
+            if method == "send" {
+                this._emitExpr(obj)
+                this._write(".send(tungstenite::Message::Text(")
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._write(".to_string())).ok()")
+                return
+            }
+            if method == "recv" {
+                this._emitExpr(obj)
+                this._write(".read().ok().and_then(|__m| if let tungstenite::Message::Text(__s) = __m { Some(__s) } else { None }).unwrap_or_default()")
+                return
+            }
+            if method == "close" {
+                this._emitExpr(obj)
+                this._write(".close(None).ok()")
+                return
+            }
+        }
+
         // A.3: inside a server handler, `req.params.get("id")` →
         // `__params.get(&"id".to_string()).cloned().unwrap_or_default()`.
         if this._serverRequestParam != "" && method == "get" {
@@ -699,6 +727,16 @@ extend RustEmitter {
         if stdlibName == "Server" {
             if method == "create" {
                 this._write("axum::Router::new()")
+                return
+            }
+        }
+
+        // ── WebSocket module (tungstenite sync) ──
+        if stdlibName == "WS" {
+            if method == "connect" {
+                this._write("{ let (__ws_conn, _) = tungstenite::connect(")
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._write(".to_string()).expect(\"WS.connect failed\"); __ws_conn }")
                 return
             }
         }

@@ -512,8 +512,9 @@ compileSingleFile(source: string, fileName: string, checkOnly: bool): Compilatio
     let sfUsesHttpClient = rustCode.contains("reqwest::")
     let sfUsesYaml = rustCode.contains("serde_yaml::")
     let sfUsesToml = rustCode.contains("toml::")
+    let sfUsesWs = rustCode.contains("tungstenite::")
     let cargoToml = emitter.generateCargoToml(
-        projectName, sfUsesAsync, sfUsesRegex, sfUsesHttp, sfUsesDb, sfUsesJson, sfUsesChrono, sfUsesRandom, sfUsesCrypto, sfUsesRayon, sfUsesHttpClient, sfUsesYaml, sfUsesToml
+        projectName, sfUsesAsync, sfUsesRegex, sfUsesHttp, sfUsesDb, sfUsesJson, sfUsesChrono, sfUsesRandom, sfUsesCrypto, sfUsesRayon, sfUsesHttpClient, sfUsesYaml, sfUsesToml, sfUsesWs
     )
 
     // Phase 12 — also propagate `use rust "crate"` decls to Cargo.toml so
@@ -792,6 +793,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let usesHttpClient = false
     let usesYaml = false
     let usesToml = false
+    let usesWs = false
     for key in moduleFiles.keys() {
         let code = moduleFiles.get(key)
         if code.contains("rand::") { usesRandom = true }
@@ -812,6 +814,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
         if code.contains("reqwest::") { usesHttpClient = true }
         if code.contains("serde_yaml::") { usesYaml = true }
         if code.contains("toml::") { usesToml = true }
+        if code.contains("tungstenite::") { usesWs = true }
     }
     let emptyTypeCtx = TypeContext(
         [], Map {}, Map {}, Map {}, Map {}, [], [], Map {}, Map {}, Map {}, Map {}, [], Map {}
@@ -819,7 +822,7 @@ compileMultiFile(entryPath: string, checkOnly: bool, verbose: bool): Compilation
     let emptyLiveCtx = LivenessContext(Map {}, Map {}, Map {}, Map {}, Map {}, Map {})
     let emitter = RustEmitter(emptyTypeCtx, emptyLiveCtx)
     let cargoToml = emitter.generateCargoToml(
-        projectName, usesAsync, usesRegex, usesHttp, usesDb, usesJson, usesChrono, usesRandom, usesCrypto, usesRayon, usesHttpClient, usesYaml, usesToml
+        projectName, usesAsync, usesRegex, usesHttp, usesDb, usesJson, usesChrono, usesRandom, usesCrypto, usesRayon, usesHttpClient, usesYaml, usesToml, usesWs
     )
 
     // Phase 12 — propagate `use rust "crate"` decls from every parsed module

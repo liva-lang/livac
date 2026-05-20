@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Added — WebSocket module
+
+- New `WS` stdlib module — synchronous WebSocket client via `tungstenite 0.24`.
+- API: `WS.connect(url)` → ws handle, `ws.send(text)`, `ws.recv()` → string, `ws.close()`.
+- `tungstenite = { version = "0.24", features = ["native-tls"] }` auto-injected into
+  generated `Cargo.toml` when `tungstenite::` is detected in emitted Rust code.
+- Variable tracking: `_wsVars` in `RustEmitter` (same pattern as `_serverVars`, `_dbVars`).
+- Docs: `docs/language-reference/stdlib/websocket.md`.
+
 ### Added — `livac bench` subcommand
 
 - New CLI command: `livac bench [path]` walks `*.bench.liva` files,

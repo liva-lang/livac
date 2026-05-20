@@ -224,6 +224,16 @@ extend RustEmitter {
                         }
                     }
                 }
+                // WS module: track `let ws = WS.connect(...)` so ws.send/recv/close dispatch.
+                if initMethod == "connect" {
+                    switch initObj {
+                        Expr.Identifier(initObjName) => {
+                            if initObjName == "WS" {
+                                this._wsVars.set(sanitized, true)
+                            }
+                        }
+                    }
+                }
             }
         }
 
