@@ -8,7 +8,7 @@
 > **Status:** v2.0 RELEASE READY — Phase 10 + Phase 11 (hardening)
 > closed; 5/5 self-host gates green; 528+ cargo tests; gen-2 idempotent
 > with bootstrap.  
-> **Last Updated:** 2026-05-04
+> **Last Updated:** 2026-05-20
 
 ---
 
