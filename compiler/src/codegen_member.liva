@@ -123,13 +123,20 @@ extend RustEmitter {
         }
 
         // .length → .len() as i32 for strings and arrays.
+        // For serde_json::Value (JSON/YAML/TOML parse results), emit .length()
+        // instead — serde_json::Value has no .len(), but JsonValueExt provides
+        // .length() which handles Array/Object/String uniformly.
         // But if the receiver is a user class with a declared `length` field,
         // treat it as a regular field access instead.
         if prop == "length" {
             let isUserClassWithLengthField = false
+            let isJsonValueReceiver = false
             switch obj {
                 Expr.Identifier(idn) => {
-                    if idn != "this" && idn != "self" {
+                    let san = this._sanitizeName(idn)
+                    if this._jsonValueVars.has(san) {
+                        isJsonValueReceiver = true
+                    } else if idn != "this" && idn != "self" {
                         let varType = this._lookupVarTypeRef(idn)
                         let className = ""
                         switch varType {
@@ -143,6 +150,24 @@ extend RustEmitter {
                         }
                     }
                 }
+                Expr.Index(idxObj, _) => {
+                    let baseName = ""
+                    switch idxObj {
+                        Expr.Identifier(idn) => { baseName = this._sanitizeName(idn) }
+                    }
+                    if baseName != "" && this._jsonValueVars.has(baseName) {
+                        isJsonValueReceiver = true
+                    }
+                }
+            }
+            if isJsonValueReceiver {
+                let savedAT = this._inAssignTarget
+                this._inAssignTarget = true
+                this._write("(")
+                this._emitExpr(obj)
+                this._write(".length() as i32)")
+                this._inAssignTarget = savedAT
+                return
             }
             if not isUserClassWithLengthField {
                 let savedAT = this._inAssignTarget
