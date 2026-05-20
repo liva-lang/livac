@@ -401,6 +401,27 @@ else
     check_fail "livac test --coverage" "rc=$rc; log:\n$(cat "$T14/log")"
 fi
 
+# ---------------------------------------------------------------------------
+# Test 15 — `livac doc`: extracts /// comments and generates Markdown.
+# ---------------------------------------------------------------------------
+T15="$OUT/doc"; mkdir -p "$T15"
+cat > "$T15/utils.liva" <<'EOF'
+/// Adds two numbers.
+add(a: number, b: number): number { return a + b }
+
+/// Multiplies two numbers.
+multiply(a: number, b: number): number { return a * b }
+
+main() { print(add(1, 2)) }
+EOF
+"$G2" doc "$T15/utils.liva" --output "$T15/docs" >"$T15/log" 2>&1
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "## add" "$T15/docs/utils.md" 2>/dev/null && grep -q "## multiply" "$T15/docs/utils.md" 2>/dev/null; then
+    check_ok "livac doc utils.liva (Markdown with ## add and ## multiply)"
+else
+    check_fail "livac doc utils.liva" "rc=$rc; log:\n$(cat "$T15/log")\ndocs:\n$(cat "$T15/docs/utils.md" 2>/dev/null)"
+fi
+
 echo "===================="
 echo "  CLI subcmds: $PASS pass / $FAIL fail"
 [[ $FAIL -eq 0 ]]

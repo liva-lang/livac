@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Added — `livac doc` — doc generator from `///` comments
+
+- New CLI command `livac doc [path|file] [--output dir]` walks `.liva` source
+  files and extracts `///` doc-comment blocks attached to the next declaration.
+- Generates one Markdown file per source file (default output: `docs/api/`).
+- Each section: `## name`, description lines, `**Signature:** \`...\`` (trailing
+  `{` stripped for clean display).
+- Skips files with no `///` comments; shows hint to add them.
+- CLI smoke test 15 added (15/15 pass).
+
 ### Added — `livac test --coverage`
 
 - New `--coverage` flag on `livac test`: runs `cargo llvm-cov --summary-only`
