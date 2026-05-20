@@ -1032,7 +1032,8 @@ cargo test --release 528+).
 
 ### Pendiente — out-of-scope estructural
 
-- [ ] Test framework Jest-style completo: `async.test.liva`, `lifecycle.test.liva` (uso de `beforeEach` top-level), `math_jest.test.liva`, `stdlib_*.test.liva` (sin `main fn` — test runner debe ejecutar `test_*` funciones).
+- [x] **Test framework Jest-style — `beforeEach`/`afterEach` lifecycle hooks.** **DONE 2026-05-19** — `codegen_test.liva` 2-pass walk over `describe()` body: pass 1 collects `beforeEach(() => {...})` / `afterEach(() => {...})` lambda bodies into new `RustEmitter._testBeforeEach` / `_testAfterEach` `[Stmt]` fields; pass 2 emits tests (skipping hook calls). Each `#[test]` body wraps a synthetic `BlockStmt` with `[before..., body..., after...]` so `_emitBlock` peephole optimizations still apply. Nested `describe()` save/restore outer hooks. CLI test 16 added (16/16 pass), full gates 7/7 green.
+- [ ] Test framework Jest-style completo: `async.test.liva`, `math_jest.test.liva`, `stdlib_*.test.liva` (sin `main fn` — test runner debe ejecutar `test_*` funciones).
 
 ### Push pendiente
 

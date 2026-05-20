@@ -138,6 +138,8 @@ RustEmitter {
     // and-mut self methods like Particle.step (see B157 / RESULTS.md F.4).
     _suppressIndexElemClone: bool
     _usedTestNames: Map<string, int>
+    _testBeforeEach: [Stmt]
+    _testAfterEach: [Stmt]
     _functionParamCount: Map<string, int>
     // GAP-007: for each function, a "fn-type-param" mask. Stored as a string
     // of "1"/"0" per param position so a Map<string,string> entry suffices.
@@ -284,6 +286,8 @@ RustEmitter {
         this._inAssignTarget = false
         this._suppressIndexElemClone = false
         this._usedTestNames = Map {}
+        this._testBeforeEach = []
+        this._testAfterEach = []
         this._functionParamCount = Map {}
         this._functionFnParamMask = Map {}
         this._functionDefaultStrs = Map {}

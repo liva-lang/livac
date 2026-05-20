@@ -12,7 +12,7 @@
 // Fields it touches on RustEmitter:
 //   _inTestBlock, _usedTestNames.
 
-import { Expr, Stmt, LambdaBody, Literal } from "./ast"
+import { Expr, Stmt, BlockStmt, LambdaBody, Literal } from "./ast"
 import { RustEmitter } from "./codegen"
 
 extend RustEmitter {
@@ -41,13 +41,27 @@ extend RustEmitter {
         let wasInTest = this._inTestBlock
         this._inTestBlock = true
 
+        // Lifecycle hooks (Jest-style): save outer scope and reset for this block.
+        // Inner describes shadow but the outer hooks restore on exit.
+        let savedBefore = this._testBeforeEach
+        let savedAfter = this._testAfterEach
+        this._testBeforeEach = []
+        this._testAfterEach = []
+
         // Extract lambda body and emit its statements
         switch args[1] {
             Expr.Lambda(lambda) => {
                 switch lambda.body {
                     LambdaBody.Block(block) => {
+                        // Pass 1: collect beforeEach/afterEach hook bodies.
                         for stmt in block.stmts {
-                            this._emitTestStmt(stmt)
+                            this._collectTestHook(stmt)
+                        }
+                        // Pass 2: emit tests + nested describes; skip hook calls.
+                        for stmt in block.stmts {
+                            if not this._isTestHookStmt(stmt) {
+                                this._emitTestStmt(stmt)
+                            }
                         }
                     },
                     LambdaBody.Expr(exprs) => {
@@ -62,9 +76,67 @@ extend RustEmitter {
             }
         }
 
+        // Restore outer lifecycle scope and test flag
+        this._testBeforeEach = savedBefore
+        this._testAfterEach = savedAfter
         this._inTestBlock = wasInTest
         this._dedent()
         this._writeln("}")
+    }
+
+    // -- Lifecycle hook detection --
+    // Returns true if the stmt is a top-level beforeEach()/afterEach() call.
+    _isTestHookStmt(stmt: Stmt): bool {
+        switch stmt {
+            Stmt.ExprStmt(expr) => {
+                switch expr {
+                    Expr.Call(callee, _, _, _) => {
+                        switch callee {
+                            Expr.Identifier(n) => {
+                                if n == "beforeEach" { return true }
+                                if n == "afterEach"  { return true }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    // Capture the lambda body of a beforeEach/afterEach call into the
+    // current hook lists, so _emitTestCase can prepend/append them.
+    _collectTestHook(stmt: Stmt) {
+        switch stmt {
+            Stmt.ExprStmt(expr) => {
+                switch expr {
+                    Expr.Call(callee, callArgs, _, _) => {
+                        let fnName = ""
+                        switch callee {
+                            Expr.Identifier(n) => { fnName = n }
+                        }
+                        if fnName != "beforeEach" && fnName != "afterEach" { return }
+                        if callArgs.length < 1 { return }
+
+                        switch callArgs[0] {
+                            Expr.Lambda(lambda) => {
+                                switch lambda.body {
+                                    LambdaBody.Block(block) => {
+                                        for hookStmt in block.stmts {
+                                            if fnName == "beforeEach" {
+                                                this._testBeforeEach.push(hookStmt)
+                                            } else {
+                                                this._testAfterEach.push(hookStmt)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // -- Helper: emit a statement inside a describe block --
@@ -123,20 +195,28 @@ extend RustEmitter {
         this._writeln($"fn test_{testName}() {{")
         this._indent()
 
-        // Emit body
+        // Emit body wrapped with beforeEach (prepend) / afterEach (append).
+        // Construct a synthetic BlockStmt so _emitBlock peephole optimizations
+        // still apply to the original test body's statements.
         switch args[1] {
             Expr.Lambda(lambda) => {
                 switch lambda.body {
                     LambdaBody.Block(block) => {
-                        this._emitBlock(block)
+                        let wrappedStmts: [Stmt] = []
+                        for h in this._testBeforeEach { wrappedStmts.push(h) }
+                        for s in block.stmts        { wrappedStmts.push(s) }
+                        for h in this._testAfterEach  { wrappedStmts.push(h) }
+                        this._emitBlock(BlockStmt { stmts: wrappedStmts })
                     },
                     LambdaBody.Expr(exprs) => {
+                        for h in this._testBeforeEach { this._emitStmt(h) }
                         for e in exprs {
                             this._writeIndent()
                             this._emitExpr(e)
                             this._write(";")
                             this._newline()
                         }
+                        for h in this._testAfterEach { this._emitStmt(h) }
                     }
                 }
             }

@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Added — Jest-style test lifecycle hooks (`beforeEach` / `afterEach`)
+
+- Inside any `describe("name", () => { ... })`, `beforeEach(() => { ... })`
+  and `afterEach(() => { ... })` lambdas now register hook bodies that are
+  inlined into every sibling `test()` inside the same `describe`. Order:
+  beforeEach → test body → afterEach.
+- Hooks scope correctly across nested `describe` blocks (inner block shadows
+  outer; outer hooks restored on block exit).
+- Implementation lives entirely in `codegen_test.liva`: a 2-pass walk over
+  the describe body (pass 1 collects hooks, pass 2 emits tests/sub-describes).
+- The test body is wrapped in a synthetic `BlockStmt` of
+  `[before...stmts, body...stmts, after...stmts]` so `_emitBlock`'s peephole
+  optimizations still apply. CLI subcommand test 16 covers it.
+
 ### Added — LSP: workspace symbols + document outline
 
 - `textDocument/documentSymbol` handler in `liva-tools/src/lsp/server.rs`

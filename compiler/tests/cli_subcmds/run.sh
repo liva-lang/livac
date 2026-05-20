@@ -422,6 +422,42 @@ else
     check_fail "livac doc utils.liva" "rc=$rc; log:\n$(cat "$T15/log")\ndocs:\n$(cat "$T15/docs/utils.md" 2>/dev/null)"
 fi
 
+# ---------------------------------------------------------------------------
+# Test 16 — `livac test` with Jest-style beforeEach/afterEach lifecycle hooks.
+# Both hooks must run once per `test()` inside the enclosing `describe()`.
+# ---------------------------------------------------------------------------
+T16="$OUT/lifecycle"; mkdir -p "$T16"
+cat > "$T16/hooks.test.liva" <<'EOF'
+import { describe, test, beforeEach, afterEach, expect } from "liva/test"
+
+describe("math", () => {
+    beforeEach(() => {
+        let warmUp = 1 + 1
+        expect(warmUp).toBe(2)
+    })
+
+    afterEach(() => {
+        let teardown = 3 - 2
+        expect(teardown).toBe(1)
+    })
+
+    test("addition", () => {
+        expect(1 + 1).toBe(2)
+    })
+
+    test("subtraction", () => {
+        expect(5 - 3).toBe(2)
+    })
+})
+EOF
+"$G2" test "$T16/hooks.test.liva" >"$T16/log" 2>&1
+rc=$?
+if [[ $rc -eq 0 ]] && (grep -qE 'PASS|test result: ok|2 passed' "$T16/log"); then
+    check_ok "livac test hooks.test.liva (beforeEach/afterEach run, 2 tests pass)"
+else
+    check_fail "livac test hooks.test.liva" "rc=$rc; log tail:\n$(tail -20 "$T16/log")"
+fi
+
 echo "===================="
 echo "  CLI subcmds: $PASS pass / $FAIL fail"
 [[ $FAIL -eq 0 ]]
