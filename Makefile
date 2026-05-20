@@ -1,4 +1,4 @@
-.PHONY: build build-bootstrap build-selfhost livac test test-full clean install run fmt clippy doc examples skill help
+.PHONY: build build-bootstrap build-selfhost livac sync-version test test-full clean install run fmt clippy doc examples skill help
 
 # Default target — produce the full release set:
 #   target/release/livac           Rust bootstrap (gen-0 seed; still the
@@ -14,7 +14,21 @@ all: livac
 #   1. Build the Rust bootstrap + liva-tools (workspace build).
 #   2. Drive bootstrap -> gen-1 -> gen-2 -> gen-3 and assert idempotence.
 #   3. Stage gen-2 at target/livac-gen2-release for the gate scripts.
-livac: build-bootstrap build-selfhost
+livac: sync-version build-bootstrap build-selfhost
+
+# Sync LIVA_COMPILER_VERSION in main.liva from bootstrap/Cargo.toml so the
+# self-host --version / --help output stays in lockstep with the workspace
+# crate version. Cargo.toml is the single source of truth; on release just
+# bump it there and `make livac` propagates the value into main.liva.
+sync-version:
+	@VER=$$(grep -m1 '^version = ' bootstrap/Cargo.toml | sed -E 's/version = "(.+)"/\1/'); \
+	  if [ -z "$$VER" ]; then echo "❌ Could not read version from bootstrap/Cargo.toml"; exit 1; fi; \
+	  CURRENT=$$(grep -m1 '^const LIVA_COMPILER_VERSION' compiler/src/main.liva | sed -E 's/.*"(.+)"/\1/'); \
+	  if [ "$$CURRENT" != "$$VER" ]; then \
+	    echo "🔖 Syncing LIVA_COMPILER_VERSION: $$CURRENT → $$VER"; \
+	    sed -i.bak -E "s|^(const LIVA_COMPILER_VERSION = )\".+\"|\1\"$$VER\"|" compiler/src/main.liva; \
+	    rm -f compiler/src/main.liva.bak; \
+	  fi
 
 # Step 1 — cargo workspace build (livac-bootstrap + liva-tools).
 build-bootstrap:
