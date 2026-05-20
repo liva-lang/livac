@@ -584,6 +584,45 @@ extend RustEmitter {
             }
         }
 
+        // ── YAML module (2 functions + serde_yaml) ──
+        // Reuses serde_json::Value as the universal dynamic value type, so
+        // every JsonValueExt method (.length, .as_string_owned, etc.) and
+        // every Index<&str>/Index<usize> codegen path applies unchanged to
+        // YAML.parse results.
+        if stdlibName == "YAML" {
+            if method == "parse" {
+                this._write("{ match serde_yaml::from_str::<serde_json::Value>(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(v) => (Some(v), String::new()), Err(e) => (None, format!(\"YAML.parse error: {}\", e)) } }")
+                return
+            }
+            if method == "stringify" {
+                this._write("{ match serde_yaml::to_string(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"YAML.stringify error: {}\", e)) } }")
+                return
+            }
+        }
+
+        // ── TOML module (2 functions + toml + serde) ──
+        // Same Value-reuse trick as YAML. Note: toml::to_string requires the
+        // top-level value to be a table, so TOML.stringify(<primitive>) will
+        // surface a serializer error string — by design, not a bug.
+        if stdlibName == "TOML" {
+            if method == "parse" {
+                this._write("{ match toml::from_str::<serde_json::Value>(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(v) => (Some(v), String::new()), Err(e) => (None, format!(\"TOML.parse error: {}\", e)) } }")
+                return
+            }
+            if method == "stringify" {
+                this._write("{ match toml::to_string(&")
+                this._emitExpr(args[0])
+                this._write(") { Ok(s) => (Some(s), String::new()), Err(e) => (None, format!(\"TOML.stringify error: {}\", e)) } }")
+                return
+            }
+        }
+
         // ── DB/SQLite module (4 functions) ──
         if stdlibName == "DB" {
             if method == "open" {

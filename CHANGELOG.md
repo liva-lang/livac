@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [Unreleased] — v2.2
+
+### Added — Stdlib YAML and TOML
+
+- `YAML.parse(text)` / `YAML.stringify(value)` — backed by crate
+  `serde_yaml` (`0.9`), auto-injected when used.
+- `TOML.parse(text)` / `TOML.stringify(value)` — backed by crate
+  `toml` (`0.8`), auto-injected when used. Root Value must be a table
+  for `stringify` (TOML spec).
+- Both modules reuse the JSON dynamic `Value` type (`serde_json::Value`),
+  so `.parse` results support indexed access (`v["k"]["nested"]`) and
+  the JsonValueExt extension methods identically to `JSON.parse`.
+- Type-safe parsing with `class` hints works the same as `JSON.parse`.
+- Smoke test in `compiler/tests/selfhost_apps/app21_yaml_toml.liva`.
+- Docs: `docs/language-reference/stdlib/yaml.md` and `toml.md`;
+  SKILL.md updated.
+
 ## [2.1.0] — 2026-05-20 — Phase F: workspace split + self-hosted tooling 🎉
 
 Tag `v2.1.0` pushed to origin (annotated; precedent: `v2.0.0-rc1`).

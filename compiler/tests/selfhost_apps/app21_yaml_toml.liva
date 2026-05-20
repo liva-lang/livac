@@ -1,0 +1,34 @@
+// App: YAML/TOML — stdlib modules sharing serde_json::Value with JSON.
+// Gen-2-only: bootstrap (FROZEN) lacks YAML/TOML codegen support.
+// EXPECT: yaml.err.empty: true
+// EXPECT: yaml.name: "liva"
+// EXPECT: yaml.version: "2.1.0"
+// EXPECT: yaml.stringify.err.empty: true
+// EXPECT: yaml.stringify.contains 'name: liva': true
+// EXPECT: toml.err.empty: true
+// EXPECT: toml.name: "liva"
+// EXPECT: toml.author.name: "liva-lang"
+// EXPECT: toml.stringify.err.empty: true
+// EXPECT: toml.stringify.contains 'name = ': true
+
+main() {
+    let yamlSrc = "name: liva\nversion: 2.1.0\n"
+    let yval, yerr = YAML.parse(yamlSrc)
+    print($"yaml.err.empty: {yerr == ""}")
+    print($"yaml.name: {yval["name"]}")
+    print($"yaml.version: {yval["version"]}")
+
+    let ystr, ysErr = YAML.stringify(yval)
+    print($"yaml.stringify.err.empty: {ysErr == ""}")
+    print($"yaml.stringify.contains 'name: liva': {ystr.contains("name: liva")}")
+
+    let tomlSrc = "name = \"liva\"\nversion = \"2.1.0\"\n[author]\nname = \"liva-lang\"\n"
+    let tval, terr = TOML.parse(tomlSrc)
+    print($"toml.err.empty: {terr == ""}")
+    print($"toml.name: {tval["name"]}")
+    print($"toml.author.name: {tval["author"]["name"]}")
+
+    let tstr, tsErr = TOML.stringify(tval)
+    print($"toml.stringify.err.empty: {tsErr == ""}")
+    print($"toml.stringify.contains 'name = ': {tstr.contains("name = ")}")
+}

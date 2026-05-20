@@ -57,6 +57,12 @@ extend RustEmitter {
                                     if jObjName == "JSON" && valName != "_" {
                                         this._jsonValueVars.set(valName, true)
                                     }
+                                    if jObjName == "YAML" && valName != "_" {
+                                        this._jsonValueVars.set(valName, true)
+                                    }
+                                    if jObjName == "TOML" && valName != "_" {
+                                        this._jsonValueVars.set(valName, true)
+                                    }
                                 }
                             }
                         }
@@ -131,6 +137,12 @@ extend RustEmitter {
                             switch jObj {
                                 Expr.Identifier(jObjName) => {
                                     if jObjName == "JSON" && sanU != "_" {
+                                        this._jsonValueVars.set(sanU, true)
+                                    }
+                                    if jObjName == "YAML" && sanU != "_" {
+                                        this._jsonValueVars.set(sanU, true)
+                                    }
+                                    if jObjName == "TOML" && sanU != "_" {
                                         this._jsonValueVars.set(sanU, true)
                                     }
                                 }

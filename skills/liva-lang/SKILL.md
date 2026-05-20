@@ -420,6 +420,8 @@ The stdlib is large. **Always read the matching `references/stdlib/*.md` file be
 | `Sys` | Args + env | `references/stdlib/system.md` | `Sys.args()` (`args[0]` = program), `Sys.env(name)`, `Sys.exit(code)` |
 | `Log` | Stderr logger (timestamps + table rendering) | `references/stdlib/logging.md` | `Log.info(msg, ...)`, `Log.warn/error/debug`, `Log.setLevel("debug")` |
 | `JSON` | Parse/stringify (typed parsing supported) | `references/json-basics.md` | `let data: User, err = JSON.parse(s)`, `JSON.stringify(obj)` |
+| `YAML` | Parse/stringify (same Value as JSON, crate `serde_yaml`) | `references/stdlib/yaml.md` | `let v, err = YAML.parse(s)`, `YAML.stringify(v)` |
+| `TOML` | Parse/stringify (same Value as JSON, crate `toml`) | `references/stdlib/toml.md` | `let v, err = TOML.parse(s)`, `TOML.stringify(v)` (root must be a table) |
 | `HTTP` | Async HTTP client | `references/stdlib/io.md`, `references/concurrency.md` | `let resp, err = HTTP.get(url)` — also `.post(url, body)`, `.put`, `.delete`. `resp.status` / `resp.body` / `resp.json()` |
 | `DB` | SQLite (crate `rusqlite`, bundled) | `references/stdlib/db.md` | `DB.open(path)`, `DB.exec(db, sql, params)`, `DB.query(db, sql, params)` → `[Map<string,string>]`, `DB.close(db)` |
 | `Server` + `Response` | HTTP server (axum) | `references/stdlib/server.md` | `Server.create()`, `app.get/post/put/delete(path, (req) => ...)`, `Response.text(s)` / `.json(data)` / `.status(code)`, `app.listen(port)` |

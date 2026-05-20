@@ -56,6 +56,8 @@ extend RustEmitter {
         if nsName == "Process" { return true }
         if nsName == "Http" || nsName == "HTTP" { return true }
         if nsName == "JSON" { return true }
+        if nsName == "YAML" { return true }
+        if nsName == "TOML" { return true }
         return false
     }
 

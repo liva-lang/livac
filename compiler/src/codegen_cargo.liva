@@ -17,7 +17,8 @@ extend RustEmitter {
     generateCargoToml(projectName: string, usesAsync: bool, usesRegex: bool,
                       usesHttp: bool, usesDb: bool, usesJson: bool,
                       usesChrono: bool, usesRandom: bool, usesCrypto: bool,
-                      usesRayon: bool, usesHttpClient: bool): string {
+                      usesRayon: bool, usesHttpClient: bool,
+                      usesYaml: bool, usesToml: bool): string {
         let lines: [string] = []
         lines.push("[workspace]")
         lines.push("")
@@ -88,6 +89,18 @@ extend RustEmitter {
         // HTTP Client
         if usesHttpClient {
             lines.push("reqwest = { version = \"0.11\", features = [\"blocking\"] }")
+        }
+
+        // YAML — depends on serde_json::Value as the dynamic carrier, which
+        // is already pulled in via usesJson when YAML is used (codegen emits
+        // `serde_yaml::from_str::<serde_json::Value>(...)`).
+        if usesYaml {
+            lines.push("serde_yaml = \"0.9\"")
+        }
+
+        // TOML — same Value-reuse pattern as YAML.
+        if usesToml {
+            lines.push("toml = \"0.8\"")
         }
 
         return lines.join("\n")

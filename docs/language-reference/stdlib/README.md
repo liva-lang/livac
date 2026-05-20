@@ -175,6 +175,26 @@ Read, write, and manipulate CSV data with Table support.
 **Table ops:** `CSV.headers(table)`, `CSV.column(table, colName)`
 **Table type:** `[Map<string, string>]` — use standard array methods for filter/sort/group
 
+### ✅ [YAML](./yaml.md)
+Parse and serialize YAML using the same dynamic Value as JSON.
+
+**Status:** Complete (v2.2) — 2 functions, crate `serde_yaml` auto-injected
+
+- `YAML.parse(text)` → `(value, err)` — same Value type as `JSON.parse`
+- `YAML.stringify(value)` → `(text, err)`
+
+Type-safe parsing with `class` hints works identically to `JSON.parse`.
+
+### ✅ [TOML](./toml.md)
+Parse and serialize TOML using the same dynamic Value as JSON.
+
+**Status:** Complete (v2.2) — 2 functions, crate `toml` auto-injected
+
+- `TOML.parse(text)` → `(value, err)` — same Value type as `JSON.parse`
+- `TOML.stringify(value)` → `(text, err)` — top-level Value must be a table
+
+Type-safe parsing with `class` hints works identically to `JSON.parse`.
+
 ### ✅ Random
 Random number generation, array shuffling, and UUID creation.
 
