@@ -147,6 +147,9 @@ printUsage() {
     print("  check   Check for errors without compiling")
     print("  test    Run test files (*.test.liva)")
     print("  init    Scaffold a new Liva project")
+    print("  fmt     Format Liva source files")
+    print("  lint    Lint Liva source files")
+    print("  lsp     Start the Language Server (stdio)")
     print("")
     print("Options:")
     print("  --version, -V    Print version and exit")
@@ -1438,6 +1441,54 @@ main() {
 
     if opts.command == "help" {
         printUsage()
+        return
+    }
+
+    // F.4 follow-up — delegate fmt/lint/lsp to the `liva-tools` binary.
+    // Stdio is inherited so the LSP JSON-RPC protocol works end-to-end.
+    // Locate liva-tools via LIVA_TOOLS_BIN env, then a sibling of the
+    // current executable, then PATH (same order as the Rust bootstrap's
+    // delegate_to_liva_tools — see bootstrap/src/main.rs).
+    if opts.command == "fmt" or opts.command == "lint" or opts.command == "lsp" {
+        rust {
+            use std::path::PathBuf;
+            use std::process::Command;
+
+            let pass: Vec<String> = std::env::args().skip(1).collect();
+
+            let candidate: PathBuf = if let Ok(p) = std::env::var("LIVA_TOOLS_BIN") {
+                PathBuf::from(p)
+            } else if let Ok(exe) = std::env::current_exe() {
+                let sibling = exe.with_file_name(if cfg!(windows) {
+                    "liva-tools.exe"
+                } else {
+                    "liva-tools"
+                });
+                if sibling.exists() {
+                    sibling
+                } else {
+                    PathBuf::from("liva-tools")
+                }
+            } else {
+                PathBuf::from("liva-tools")
+            };
+
+            let code = match Command::new(&candidate).args(pass.iter()).status() {
+                Ok(s) => s.code().unwrap_or(1),
+                Err(e) => {
+                    eprintln!(
+                        "Error: Failed to invoke `liva-tools` at {}: {}",
+                        candidate.display(),
+                        e
+                    );
+                    eprintln!(
+                        "   Hint: set LIVA_TOOLS_BIN, or ensure `liva-tools` is on PATH or next to `livac`."
+                    );
+                    1
+                }
+            };
+            std::process::exit(code);
+        }
         return
     }
 

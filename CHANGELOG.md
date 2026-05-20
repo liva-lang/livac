@@ -40,10 +40,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   2. `compiler/tests/rebuild_selfhost.sh` (gen-0 → gen-1 → gen-2 →
      gen-3 with idempotence assertions),
   3. Stages gen-2 at `target/livac-gen2-release` for every gate script.
-  Full user-facing replacement of `target/release/livac` by gen-2 is
-  deferred until the self-host gains `Process.spawn_inherit()` so it
-  can subprocess-dispatch `fmt/lint/lsp` to `liva-tools` (LSP needs
-  inherited stdio).
+- **F.4 follow-up — self-host fmt/lint/lsp dispatch** (2026-05-20).
+  `compiler/src/main.liva` now branches on `opts.command == "fmt"|"lint"|"lsp"`
+  early in `main()` and inlines an unsafe-free `rust { }` block that
+  locates the `liva-tools` binary (env `LIVA_TOOLS_BIN` → sibling of
+  the current executable → PATH fallback — same lookup order as the
+  Rust bootstrap's `delegate_to_liva_tools`) and spawns it via
+  `Command::status()` (default inherited stdio so LSP JSON-RPC works
+  end-to-end), exiting with the child's exit code. No new
+  `Process.spawn_inherit()` runtime builtin needed — keeps the FROZEN
+  bootstrap untouched. `printUsage()` now lists `fmt`/`lint`/`lsp`.
+  Gen-2 rebuild remains idempotent (`gen-2 ≡ gen-3` source + binary).
+  Validated by `selfhost_apps` (52s), `multifile_apps` (71s),
+  `cli_subcmds` (32s) gates GREEN with the new gen-2 binary, plus
+  `cargo test --release --workspace` clean. Unblocks the eventual
+  swap of user-facing `target/release/livac` from the Rust bootstrap
+  to gen-2.
 - **F.5 — CI/release workflows workspace-aware** (2026-05-19). All
   `cargo build/test/clippy/fmt` now use `--workspace` / `--all`.
   `release.yml` version bump touches `bootstrap/Cargo.toml` +

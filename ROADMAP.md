@@ -71,10 +71,15 @@ The roadmap is organized into focused phases:
 >   `fmt`/`lint`/`lsp` to it. ~5.2k LOC moved.
 > - **F.3** ✅ Rust bootstrap moved to `livac/bootstrap/`, package renamed
 >   `livac-bootstrap`, marked FROZEN. Workspace-only `livac/Cargo.toml`.
-> - **F.4** ✅ (partial) `make livac` orchestrates the canonical build:
+> - **F.4** ✅ `make livac` orchestrates the canonical build:
 >   `cargo --workspace` → `rebuild_selfhost.sh` (gen-2 ≡ gen-3) → stage
->   gen-2 at `target/livac-gen2-release`. Full user-facing swap deferred
->   until self-host gains `Process.spawn_inherit()` for LSP stdio.
+>   gen-2 at `target/livac-gen2-release`.
+> - **F.4 follow-up** ✅ (2026-05-20) Self-host `main.liva` dispatches
+>   `fmt`/`lint`/`lsp` to `liva-tools` via an inline `rust { }` block
+>   with inherited stdio. No new `Process.spawn_inherit()` builtin
+>   needed — bootstrap stays FROZEN. Gen-2 idempotence preserved;
+>   `selfhost_apps`/`multifile_apps`/`cli_subcmds` gates GREEN.
+>   Unblocks the eventual swap of user-facing `target/release/livac`.
 > - **F.5** ✅ CI/release workflows are workspace-aware; `cargo fmt --all`
 >   clean across bootstrap + liva-tools.
 > - **F.6** ⏳ Only the signed `v2.1.0` tag remains. Awaiting explicit

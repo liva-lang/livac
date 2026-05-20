@@ -1362,10 +1362,10 @@ extend RustEmitter {
 - [x] **F.1** — Carve out runtime (dead-code cleanup + include_str! template). ✅ 2026-05-19
 - [x] **F.2** — Carve out `liva-tools` (formatter + linter + LSP into separate crate). ✅ 2026-05-19
 - [x] **F.3** — Freeze bootstrap (`livac/src/` → `livac/bootstrap/src/`, package `livac-bootstrap`). ✅ 2026-05-19
-- [x] **F.4** — `make livac` canonical build flow (bootstrap + tools + gen-2 idempotence). ✅ 2026-05-19 *(partial: user-facing `target/release/livac` still resolves to Rust bootstrap; full swap blocked on self-host `Process.spawn_inherit()` for LSP)*
+- [x] **F.4** — `make livac` canonical build flow (bootstrap + tools + gen-2 idempotence). ✅ 2026-05-19
 - [x] **F.5** — CI/release workflows workspace-aware + `cargo fmt --all` clean. ✅ 2026-05-19
 - [ ] **F.6** — `git tag v2.1.0 -s` (signed). ⏳ Awaiting explicit owner authorization.
-- [ ] **F.4 follow-up (v2.1.x)** — Add `Process.spawn_inherit()` runtime helper + self-host `main.liva` dispatch for `fmt`/`lint`/`lsp` so gen-2 becomes the user-facing `target/release/livac`.
+- [x] **F.4 follow-up** — Self-host `main.liva` now dispatches `fmt`/`lint`/`lsp` to the `liva-tools` binary via an inline `rust { }` block (same `LIVA_TOOLS_BIN` → sibling → PATH lookup as the Rust bootstrap, with inherited stdio so LSP JSON-RPC works end-to-end). No new `Process.spawn_inherit()` runtime builtin needed — bootstrap stays FROZEN. Gen-2 rebuild idempotent + `selfhost_apps`/`multifile_apps`/`cli_subcmds` gates GREEN + cargo test workspace clean. ✅ 2026-05-20
 - [ ] **v2.1 Release: Liva is fully self-hosted.** ⏳ Gated on F.6.
 
 ---
