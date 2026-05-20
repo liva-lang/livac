@@ -137,7 +137,7 @@ parseCliArgs(args: [string]): CliOptions {
 }
 
 printUsage() {
-    print("🧩 Liva Compiler v2.0.0-rc1 (self-hosted)")
+    print("🧩 Liva Compiler v2.2.0 (self-hosted)")
     print("")
     print("Usage: livac <command> <input.liva> [options]")
     print("")
@@ -1441,7 +1441,7 @@ main() {
 
     // Handle informational commands first
     if opts.command == "version" {
-        print("🧩 Liva Compiler v2.0.0-rc1 (self-hosted)")
+        print("🧩 Liva Compiler v2.2.0 (self-hosted)")
         return
     }
 

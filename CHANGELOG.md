@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
-## [Unreleased] — v2.2
+## [2.2.0] — 2026-05-20 — YAML/TOML stdlib + JSON Value `.length` fix
 
 ### Added — Stdlib YAML and TOML
 
@@ -24,7 +24,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Type-safe parsing with `class` hints works the same as `JSON.parse`.
 - Smoke test in `compiler/tests/selfhost_apps/app21_yaml_toml.liva`.
 - Docs: `docs/language-reference/stdlib/yaml.md` and `toml.md`;
-  SKILL.md updated.
+  SKILL.md and stdlib README updated.
+
+### Fixed
+
+- `.length` on `serde_json::Value` results (JSON / YAML / TOML parse)
+  now emits `.length()` (the `JsonValueExt` trait method) instead of
+  `.len()` (which is a private method on `Option`, not implemented on
+  `serde_json::Value`). Affects both top-level Values and nested
+  indexed expressions (`v["features"].length`).
+- `Makefile`'s `build-selfhost` target now reads gen-2 staging from
+  `$HOME/tmp/gen2_build` to match `rebuild_selfhost.sh`'s hardcoded
+  path. Previously the cp step would fail with "No such file" on
+  fresh checkouts where `TMPDIR` differed from the script's path.
 
 ## [2.1.0] — 2026-05-20 — Phase F: workspace split + self-hosted tooling 🎉
 
