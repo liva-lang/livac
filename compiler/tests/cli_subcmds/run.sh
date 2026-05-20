@@ -378,6 +378,29 @@ else
     check_fail "livac bench sample.bench.liva" "rc=$rc; log tail:\n$(tail -20 "$T13/log")"
 fi
 
+# ---------------------------------------------------------------------------
+# Test 14 — `livac test --coverage`: compiles a *.test.liva file and reports
+# coverage via cargo-llvm-cov (must show TOTAL line).
+# ---------------------------------------------------------------------------
+T14="$OUT/coverage"; mkdir -p "$T14"
+cat > "$T14/math.test.liva" <<'EOF'
+add(a: number, b: number): number { return a + b }
+
+test_add_positive() {
+    expect(add(1, 2)).toBe(3)
+}
+test_add_negative() {
+    expect(add(-1, -2)).toBe(-3)
+}
+EOF
+"$G2" test "$T14/math.test.liva" --coverage >"$T14/log" 2>&1
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "TOTAL" "$T14/log" && grep -q "PASS" "$T14/log"; then
+    check_ok "livac test --coverage (PASS + TOTAL coverage line)"
+else
+    check_fail "livac test --coverage" "rc=$rc; log:\n$(cat "$T14/log")"
+fi
+
 echo "===================="
 echo "  CLI subcmds: $PASS pass / $FAIL fail"
 [[ $FAIL -eq 0 ]]

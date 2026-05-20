@@ -11,9 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
-### Added — WebSocket module
+### Added — `livac test --coverage`
 
-- New `WS` stdlib module — synchronous WebSocket client via `tungstenite 0.24`.
+- New `--coverage` flag on `livac test`: runs `cargo llvm-cov --summary-only`
+  instead of `cargo test` to generate line/region/function coverage.
+- Prints `PASS <file> (N tests)` followed by the `Filename / TOTAL` table.
+- Graceful error when `cargo-llvm-cov` is not installed (install instructions printed).
+- CLI smoke test 14 added in `compiler/tests/cli_subcmds/run.sh`.
+- `CliOptions` struct extended with `coverage: bool` field.
+
+### Added — WebSocket module — synchronous WebSocket client via `tungstenite 0.24`.
 - API: `WS.connect(url)` → ws handle, `ws.send(text)`, `ws.recv()` → string, `ws.close()`.
 - `tungstenite = { version = "0.24", features = ["native-tls"] }` auto-injected into
   generated `Cargo.toml` when `tungstenite::` is detected in emitted Rust code.
