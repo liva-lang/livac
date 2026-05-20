@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Added — LSP: workspace symbols + document outline
+
+- `textDocument/documentSymbol` handler in `liva-tools/src/lsp/server.rs`
+  populates VS Code's Outline panel and breadcrumbs from indexed top-level
+  classes, functions, type decls, and type aliases.
+- `workspace/symbol` handler powers Ctrl+T (Go to Symbol in Workspace);
+  filters by case-insensitive substring, caps at 500 results to stay
+  responsive on large workspaces.
+- `ServerCapabilities` now advertises `documentSymbolProvider` +
+  `workspaceSymbolProvider`. Existing `WorkspaceIndex.all_symbols()` /
+  `get_file_symbols()` reused — no new indexing required.
+
 ### Added — `livac doc` — doc generator from `///` comments
 
 - New CLI command `livac doc [path|file] [--output dir]` walks `.liva` source

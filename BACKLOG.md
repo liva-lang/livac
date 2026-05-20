@@ -1327,8 +1327,8 @@ extend RustEmitter {
       en `feat/self-hosting-v2`).
 
 **LSP (puede ir más tarde):**
-- [ ] Workspace symbols mostrando `Foo (extension)` por archivo (~50 líneas).
-- [ ] Document outline para `extend` (~20 líneas).
+- [x] Workspace symbols mostrando `Foo (extension)` por archivo (~50 líneas). **DONE 2026-05-19** — `workspace/symbol` handler en `liva-tools/src/lsp/server.rs:818`, usa `workspace_index.all_symbols()` con filtro substring case-insensitive, cap 500 resultados. Verificado por smoke test (response trae `Token` kind=5 + `lookupKeyword/main/tokenKindName` kind=12).
+- [x] Document outline para `extend` (~20 líneas). **DONE 2026-05-19** — `textDocument/documentSymbol` handler emite `DocumentSymbolResponse::Flat` desde `workspace_index.get_file_symbols(uri)`. `ServerCapabilities` ya anuncia ambos providers.
 - [ ] Incremental invalidation cross-file cuando cambia una extensión (~30 líneas).
 
 ### Fase D — Portar fixes (orden recomendado, fáciles primero)

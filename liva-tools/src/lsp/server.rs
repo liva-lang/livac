@@ -160,6 +160,8 @@ impl LanguageServer for LivaLanguageServer {
                 references_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
+                document_symbol_provider: Some(OneOf::Left(true)),
+                workspace_symbol_provider: Some(OneOf::Left(true)),
                 workspace: Some(WorkspaceServerCapabilities {
                     workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                         supported: Some(true),
@@ -814,5 +816,67 @@ impl LanguageServer for LivaLanguageServer {
                 Ok(None)
             }
         }
+    }
+
+    /// Document symbols — populates VS Code's Outline view and breadcrumbs
+    /// with all top-level functions, classes, type aliases, and methods.
+    async fn document_symbol(
+        &self,
+        params: DocumentSymbolParams,
+    ) -> Result<Option<DocumentSymbolResponse>> {
+        let uri = &params.text_document.uri;
+
+        let symbols = match self.workspace_index.get_file_symbols(uri) {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        #[allow(deprecated)]
+        let infos: Vec<SymbolInformation> = symbols
+            .into_iter()
+            .map(|sym| SymbolInformation {
+                name: sym.name,
+                kind: sym.kind,
+                tags: None,
+                deprecated: None,
+                location: Location {
+                    uri: uri.clone(),
+                    range: sym.range,
+                },
+                container_name: None,
+            })
+            .collect();
+
+        Ok(Some(DocumentSymbolResponse::Flat(infos)))
+    }
+
+    /// Workspace symbols — Ctrl+T (Go to Symbol in Workspace) populated
+    /// from every indexed file. Filters by the user's query substring.
+    async fn symbol(
+        &self,
+        params: WorkspaceSymbolParams,
+    ) -> Result<Option<Vec<SymbolInformation>>> {
+        let query = params.query.to_lowercase();
+        let all = self.workspace_index.all_symbols();
+
+        #[allow(deprecated)]
+        let results: Vec<SymbolInformation> = all
+            .into_iter()
+            .filter(|(_, sym)| query.is_empty() || sym.name.to_lowercase().contains(&query))
+            .take(500) // protect against huge result sets
+            .map(|(uri, sym)| SymbolInformation {
+                name: sym.name,
+                kind: sym.kind,
+                tags: None,
+                deprecated: None,
+                location: Location {
+                    uri,
+                    range: sym.range,
+                },
+                container_name: None,
+            })
+            .collect();
+
+        Ok(Some(results))
     }
 }
