@@ -66,6 +66,8 @@ import { codegenGenerateExtensionLoaded } from "./codegen_generate"
 import { sanitizeFieldName, extractModuleName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
+const LIVA_COMPILER_VERSION = "2.2.0"
+
 // =====================================================================
 //  CLI Argument Parsing
 // =====================================================================
@@ -137,7 +139,7 @@ parseCliArgs(args: [string]): CliOptions {
 }
 
 printUsage() {
-    print("🧩 Liva Compiler v2.2.0 (self-hosted)")
+    print($"🧩 Liva Compiler v{LIVA_COMPILER_VERSION} (self-hosted)")
     print("")
     print("Usage: livac <command> <input.liva> [options]")
     print("")
@@ -1441,7 +1443,7 @@ main() {
 
     // Handle informational commands first
     if opts.command == "version" {
-        print("🧩 Liva Compiler v2.2.0 (self-hosted)")
+        print($"🧩 Liva Compiler v{LIVA_COMPILER_VERSION} (self-hosted)")
         return
     }
 
