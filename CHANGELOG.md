@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
-## [Unreleased] — v2.3
+## [2.3.0] — 2026-05-21 — Tooling completion: REPL, doc, bench, coverage, Jest hooks
 
 ### Backlog cleanup — closed all v2.x non-3.x items as either done, deferred, or won't-fix
 

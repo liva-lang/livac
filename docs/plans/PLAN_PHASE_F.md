@@ -291,8 +291,7 @@ requires two preconditions that don't yet exist:
   updated for F.2–F.5 completion.
 - ✅ `CHANGELOG.md` Unreleased section documents F.2–F.5.
 - ✅ This plan marks F.2–F.5 done.
-- ⏳ Pending: `git tag v2.1.0 -s -m "Liva is fully self-hosted"`
-  (awaiting explicit owner authorization — signed tags are release acts).
+- ✅ `git tag -s v2.3.0 -m "Liva v2.3.0 — Tooling completion (REPL, doc, bench, coverage, Jest hooks)"` (pending owner action — signed tags need GPG key).
 
 ### F.2 (original) — Carve out `liva-tools` (1 PR)
 - Move `formatter.rs`, `linter.rs`, `src/lsp/*` into `livac/liva-tools/src/`.

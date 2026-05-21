@@ -4,11 +4,12 @@
 > direction.  
 > **Companion docs:** `BACKLOG.md` (open tasks),
 > `CHANGELOG.md` (per-version released changes).  
-> **Current Version:** v2.1.0 (tag pushed 2026-05-20)  
-> **Status:** v2.1 RELEASED — Phase F closed; Liva is fully self-hosted
-> (gen-2 ships, bootstrap FROZEN); 12/12 cli_subcmds gate; 528+ cargo
-> tests; gen-2 ≡ gen-3 idempotent.  
-> **Last Updated:** 2026-05-20
+> **Current Version:** v2.3.0 (release 2026-05-21)  
+> **Status:** v2.3 RELEASED — Tooling completion: REPL (rustyline), doc/bench/coverage,
+> Jest-style hooks, lazy iterator chain fusion, bench gate, LIVA_STRICT, AI skill
+> audit. Phase F closed (Liva fully self-hosted, bootstrap FROZEN). Gen-2 ≡ gen-3
+> idempotent; all gates green.  
+> **Last Updated:** 2026-05-21
 
 ---
 
