@@ -22,14 +22,21 @@ livac run file.liva               # Compile and run
 livac run --release file.liva     # Release mode
 livac check file.liva             # Syntax check only
 livac fmt file.liva               # Format in place
-livac test                        # Run *.test.liva files
-livac test --filter "name"        # Filter tests
+livac test                        # Run *.test.liva files (Jest-style)
+livac test --filter "name"        # Filter tests by name
+livac test --coverage             # Coverage report (cargo-llvm-cov)
+livac bench file.liva             # Run bench_* fns, print "BENCH name N ms"
+livac doc src/ -o api.md          # Generate Markdown from /// comments
+livac repl                        # Interactive REPL (rustyline history)
 livac lint file.liva              # Linter warnings (W001-W004)
+livac lsp                         # Start Language Server (stdio)
 livac init my-project             # Scaffold new project
 livac init .                      # Init in current directory
 livac update                      # Self-update to latest version
 livac build --verbose file.liva   # Show generated Rust
 ```
+
+Env vars: `LIVA_STRICT=1` (tighter `#![allow(...)]` so `-D warnings` bites), `LIVA_DEBUG=1` (phase timings to stderr).
 
 ## Variables & Types
 
@@ -455,20 +462,71 @@ See `references/rust-interop.md` for full details.
 
 ## Testing
 
+Files end with `.test.liva` — `livac test` auto-discovers them. No `main()` required.
+
 ```liva
-import { describe, test, expect } from "liva/test"
+import { describe, test, beforeEach, afterEach, expect } from "liva/test"
 
 describe("Math", () => {
+    let calls = 0
+    beforeEach(() => { calls = calls + 1 })
+    afterEach(() => { /* cleanup */ })
+
     test("add", () => {
         expect(add(2, 3)).toBe(5)
         expect(add(-1, 1)).not.toBe(2)
     })
 })
-// Matchers: toBe, toEqual, toBeTruthy, toBeFalsy, toBeGreaterThan, toBeLessThan,
-//           toContain, toBeNull, toThrow, .not.*
-// Hooks: beforeAll, afterAll, beforeEach, afterEach
-// Run: livac test / livac test --filter "name"
+
+// Older form still works (no import needed):
+test_addition() {
+    if 2 + 2 != 4 { fail "math broken" }
+}
 ```
+
+- **Matchers:** `toBe`, `toEqual`, `toContain`, `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeGreaterThan`, `toBeLessThan`, `toThrow`, plus `.not.<matcher>` for any.
+- **Hooks:** `beforeAll`, `afterAll`, `beforeEach`, `afterEach` — scoped to the enclosing `describe(...)`.
+- **Run:** `livac test` (whole project), `livac test --filter "add"` (substring), `livac test --coverage` (HTML at `target/llvm-cov/html/`).
+- **Benchmarks:** functions named `bench_*` are run by `livac bench`, which prints `BENCH name N ms` per fn.
+
+## Performance & Efficiency Tips
+
+Generate idiomatic, fast code by following these rules — the compiler already does many optimizations, but you can avoid pessimal patterns:
+
+1. **Iterator chains fuse.** `arr.filter(p).map(f).take(n)` lowers to a single Rust `Iterator` chain — no intermediate `Vec`. Prefer chains over manual `for` + `push` loops when expressing transformations.
+2. **`.push(x)` mutates; `arr + [x]` allocates.** Use `push` inside loops; reserve `+` for tiny one-off concats.
+3. **`reduce` can replace temporary arrays.** `nums.map(f).reduce(0, +)` is fine but `nums.reduce(0, (a,x) => a + f(x))` skips the intermediate map.
+4. **Use `or fail` over manual `if err`** for propagation — generated code is identical but source is shorter and the compiler can short-circuit.
+5. **`async` only when there's overlap.** `let r = async f(); g(r)` is slower than `let r = f(); g(r)` — task spawn has overhead. Use `async` when work runs *between* spawn and use, or for fan-out of independent calls.
+6. **`par` is for CPU-bound only.** I/O calls already release the runtime; using `par` on `HTTP.get` adds a thread for nothing.
+7. **`Map<string, T>` lookups are O(1) hashed.** Don't loop arrays of pairs when a Map fits.
+8. **String-build with templates `$"..."`, not `+`.** Templates lower to a single `format!` call; chained `+` allocates once per join.
+9. **`defer` is zero-cost.** It's a stack push, not a closure box. Use it freely for cleanup.
+10. **Avoid `rust { }` for things stdlib already covers.** Inline Rust prevents some optimizations and limits portability.
+11. **Don't `.clone()` manually in `rust { }` blocks.** The Liva-side mode inference handles ownership; cloning inside Rust blocks defeats it.
+12. **`for` over arrays does not copy.** `for x in arr` borrows; mutate via `.push`/`.set` on `arr` itself.
+
+## Anti-Patterns (the AI's most common mistakes)
+
+| ❌ Wrong | ✅ Right | Why |
+|----------|----------|-----|
+| `fn add(a, b) { return a + b }` | `add(a, b) => a + b` | No `fn` keyword exists |
+| `class Person { ... }` | `Person { ... }` | No `class` keyword |
+| `Color::Red` | `Color.Red` | Dot syntax for enums |
+| `if err != "" { ... }` | `if err { ... }` | `err` is `Option<Error>`, truthy |
+| `let x: String = "hi"` | `let x: string = "hi"` | Liva types are lowercase |
+| `let n: i32 = 0` | `let n: number = 0` | `i32` is Rust-only |
+| `for (let i = 0; i < 10; i++)` | `for i in 0..10` | C-style `for` doesn't exist |
+| `x++` | `x += 1` | No `++`/`--` operators |
+| `nums.reduce((a,x) => a+x, 0)` | `nums.reduce(0, (a,x) => a+x)` | Initial value FIRST |
+| ``msg = `Hi ${n}` `` | `msg = $"Hi {n}"` | Templates use `$"..."`, not backticks |
+| `if age >= 18 => return age` then nothing else returns | explicit `return` paths | `=>` on if/for/while ≠ implicit return |
+| `priority1 > priority2` (enum) | weight fn + compare numbers | Enums auto-derive `PartialEq`, NOT `PartialOrd` |
+| `items.forEach(x => print(x))` | `items.forEach(print)` | Point-free is shorter and equivalent |
+| `let user = fetchUser(); print(user)` with `async fetchUser` | drop the `async` | No overlap = no concurrency gained |
+| `defer { db.close() }` (block of one) | `defer db.close()` | Block form only when 2+ statements |
+| Manually splitting `class.liva` into 5 modules | split via `extend` in same file group | One owner + `extend` keeps fields/constructor in one place |
+| `let n, err = parseInt("3"); print(n)` ignoring err | always handle `err` (E0701) | Compiler will reject otherwise |
 
 ## Critical Rules
 
@@ -492,7 +550,7 @@ describe("Math", () => {
 
 ### Reserved Keywords
 
-Language keywords (cannot be identifiers): `let const import from as if else while for in switch case default return break continue fail throw try catch async par parallel task await move seq defer vec parvec with ordered chunk threads enum type use rust test true false null and or not safe fast static dynamic auto detect schedule reduction prefetch simdWidth number float bool char string bytes`.
+Language keywords (cannot be identifiers): `let const import from as if else while for in switch case default return break continue fail throw try catch async par parallel task await move seq defer vec parvec with ordered chunk threads enum extend type use rust test true false null and or not safe fast static dynamic auto detect schedule reduction prefetch simdWidth number float bool char string bytes`.
 
 Also avoid Rust reserved words as field/method names (`type`, `match`, `mod`, `self`, `super`, `crate`, `impl`, `trait`, `pub`, `fn`, `struct`, `where`, `loop`, `ref`, `mut`, `dyn`, `abstract`, `yield`). Some are escaped automatically (`type` → `r#type`); prefer alternatives like `kind`.
 
@@ -500,6 +558,7 @@ Also avoid Rust reserved words as field/method names (`type`, `match`, `mod`, `s
 
 For detailed docs, read files in `references/`. Key files:
 
+- `references/QUICK_REFERENCE.md` — denser reference of the same material as this SKILL
 - `references/pattern-matching.md` — Range/or/guard/tuple/enum patterns, exhaustiveness
 - `references/enums.md` — Enums with data, recursive enums, exhaustive switch
 - `references/collections.md` — Maps, Sets, parallel execution policies
@@ -508,5 +567,8 @@ For detailed docs, read files in `references/`. Key files:
 - `references/modules.md` — Import paths, wildcard imports, visibility
 - `references/file-io.md` — File and Dir methods with signatures
 - `references/linter.md` — W001-W004 warning codes
-- `references/guides/style-guide.md` — Idiomatic patterns, `=>` vs `{}`, naming
+- `references/ERROR_CODES.md` — All E0xxx / E2xxx / E9xxx error codes with hints
+- `references/guides/style-guide.md` — Idiomatic patterns, full anti-pattern list
+- `references/guides/cli-tools.md` — `repl`/`doc`/`bench`/`test --coverage` deep dive
+- `references/guides/module-best-practices.md` — How to split large projects
 - `references/stdlib/` — Per-module API: arrays, strings, math, date, regex, csv, db, server, etc.
