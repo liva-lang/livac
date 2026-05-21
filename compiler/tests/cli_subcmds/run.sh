@@ -21,10 +21,11 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 
 [[ -x "$G2" ]] || { echo "gen-2 missing: bash compiler/tests/rebuild_selfhost.sh"; exit 2; }
 
-PASS=0; FAIL=0
+PASS=0; FAIL=0; SKIP=0
 
 check_ok()   { echo "[OK ] $1"; PASS=$((PASS+1)); }
 check_fail() { echo "[FAIL] $1"; echo "  $2"; FAIL=$((FAIL+1)); }
+check_skip() { echo "[SKIP] $1"; SKIP=$((SKIP+1)); }
 
 # ---------------------------------------------------------------------------
 # Test 1 — `livac run` compiles and executes, stdout matches expectation.
@@ -395,7 +396,9 @@ test_add_negative() {
 EOF
 "$G2" test "$T14/math.test.liva" --coverage >"$T14/log" 2>&1
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q "TOTAL" "$T14/log" && grep -q "PASS" "$T14/log"; then
+if ! command -v cargo-llvm-cov &>/dev/null && grep -q "cargo-llvm-cov not found" "$T14/log"; then
+    check_skip "livac test --coverage (cargo-llvm-cov not installed)"
+elif [[ $rc -eq 0 ]] && grep -q "TOTAL" "$T14/log" && grep -q "PASS" "$T14/log"; then
     check_ok "livac test --coverage (PASS + TOTAL coverage line)"
 else
     check_fail "livac test --coverage" "rc=$rc; log:\n$(cat "$T14/log")"
@@ -506,5 +509,5 @@ for jf in "$JESTDIR"/math_jest.test.liva \
 done
 
 echo "===================="
-echo "  CLI subcmds: $PASS pass / $FAIL fail"
+echo "  CLI subcmds: $PASS pass / $FAIL fail / $SKIP skip"
 [[ $FAIL -eq 0 ]]

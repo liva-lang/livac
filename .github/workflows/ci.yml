@@ -66,6 +66,10 @@ jobs:
             target
           key: selfhost-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: selfhost-
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
       - name: Build bootstrap (release)
         run: cargo build --release --workspace
       - name: Bootstrap → gen-1 → gen-2 (rebuild self-host)
