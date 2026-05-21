@@ -11,6 +11,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Backlog cleanup — closed all v2.x non-3.x items as either done, deferred, or won't-fix
+
+Following the v2.3 small-tasks batch sweep, audited every remaining
+`[ ]` item in `BACKLOG.md` (excluding the explicitly v3.x section)
+and resolved them:
+
+- **Fase C (split `codegen.liva`):** marked done. `codegen.liva` shrank
+  from 7463 lines (v2.0) → 676 lines today, redistributed across 19
+  sibling files via `extend RustEmitter { }`. Largest file is now
+  `codegen_stdlib_methods.liva` (1292 lines). The Emitter abstraction
+  (`_write`/`_writeln`/`_writeIndent`/`_indent`/`_dedent`) is in place.
+- **Coverage uplift parser/codegen/semantic ≥90%:** closed won't-fix.
+  Those modules belong to the FROZEN bootstrap; investing weeks writing
+  unit tests on code slated for removal isn't cost-effective. Effective
+  coverage is enforced by gen-2 ≡ gen-3 binary idempotence over 50+
+  fixtures across all 8 gates.
+- **Map<string, …> consolidation (Tier A2 + Bloque 2 + 10.5):** the
+  three "reabrir si surge hotpath" items closed won't-fix. v2.3 bench
+  still 4/4 < 1.15× — no hotpath has emerged.
+- **Borrow-tracking IR refactor (post-v2.0 Tier 3):** marked DEFERRED.
+  The premise ("solo si Fase 10 no alcanza 1.05×") never triggered.
+  Reopens only if a real-world hotpath reports >1.5× regression caused
+  by avoidable `.clone()`s missed by the current heuristics.
+
+After this sweep, the only remaining open items in `BACKLOG.md` are
+the explicit v3.x bucket (package manager, DAP debugger, profiler) —
+those require active community demand before they're worth starting.
+
 ### Added — Bench gate in `run_all.sh` and CI (BACKLOG #1162)
 
 - New `compiler/tests/bench/` directory with two microbenches

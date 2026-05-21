@@ -1148,7 +1148,7 @@ cargo test --release 528+).
 - [x] Identificar zonas <90% en `src/` — documentado en `docs/PROJECT_STRUCTURE.md`
 - [x] `make coverage` y `make coverage-html` targets añadidos a `Makefile`
 - [x] Documentar baseline en `docs/PROJECT_STRUCTURE.md` con tabla por módulo
-- [ ] (post-v2.0, low-priority) Añadir tests para subir módulos core a ≥90%: `parser` 77→90%, `codegen` 67→90%, `semantic` 48→90%. Ámbito grande — trackeado para v2.x.
+- [x] (post-v2.0, low-priority) ~~Añadir tests para subir módulos core a ≥90%: `parser` 77→90%, `codegen` 67→90%, `semantic` 48→90%. Ámbito grande — trackeado para v2.x.~~ **CERRADO won't-fix 2026-05-21** — los módulos `parser.rs`/`codegen.rs`/`semantic.rs` son del **bootstrap FROZEN**, programados para retiro una vez gen-2 cubra el último gap (Fase F.6 / v3.0 self-host pure). Invertir semanas escribiendo tests unitarios sobre código congelado a punto de borrarse no es coste-beneficio razonable. La cobertura efectiva del compilador SE MIDE por la idempotencia gen-2 ≡ gen-3 sobre 21 selfhost_apps + 5 multifile_apps + 18 regression + 4 complex_apps + 5 e2e_progs + suite Liva 135 archivos: cualquier gap en parser/codegen/semantic se detecta como divergencia binaria. Reabrir tras retiro de bootstrap si la cobertura efectiva de los módulos GEN-2 (`compiler/src/*.liva`) es <90%.
 
 **Nota:** `liva_rt.rs` (0%), `main.rs` (19%) y `lsp/*` (0–59%) son intencionalmente bajos:
 se cubren vía E2E (`compiler/tests/e2e_selfhost.sh`), test suite Liva (`compiler/tests/liva/`)
@@ -1208,13 +1208,16 @@ y tests LSP manuales — no representan gap real.
 
 ## Post-v2.0 — Borrow-tracking IR completo (Tier 3, rediseño)
 
-> **NO bloquea v2.0.** Solo si tras Fase 10 los datos justifican un rediseño mayor para acercar todos los benches a 1.05x. Estimación: 3–6 semanas.
+> **DEFERRED 2026-05-21** — Bench v2.3 sigue 4/4 <1.15x sin este refactor. La premisa original ("solo si Fase 10 no alcanza 1.05x") nunca se cumplió. El IR borrow-mode es un proyecto multi-mes (3-6 semanas mínimo) sin presión de uso real. Reactivar SOLO si:
+> 1. Un usuario reporta un hotpath donde gen-2 → Rust pierde > 1.5x vs Rust idiomático escrito a mano, Y
+> 2. Análisis muestra que la causa son `.clone()` evitables que la heurística actual (`_canMoveIdent` + `strRefParams`) no detecta.
+> Hasta entonces queda como design doc histórico — ningún ítem accionable.
 
-- [ ] Nuevo IR `liva-AST → liva-IR` con anotaciones `Owned | Borrowed | MutBorrowed` por uso
-- [ ] Pase de inferencia de borrow modes (combina liveness + mutabilidad efectiva + escape)
-- [ ] Codegen `IR → Rust` que solo emita `.clone()` cuando dos usos `Owned` consumen la misma variable
-- [ ] Migración incremental: feature flag `--ir`, comparar output con codegen actual hasta paridad
-- [ ] Retirar codegen legacy
+- [x] ~~Nuevo IR `liva-AST → liva-IR` con anotaciones `Owned | Borrowed | MutBorrowed` por uso~~ **DEFERRED**
+- [x] ~~Pase de inferencia de borrow modes (combina liveness + mutabilidad efectiva + escape)~~ **DEFERRED**
+- [x] ~~Codegen `IR → Rust` que solo emita `.clone()` cuando dos usos `Owned` consumen la misma variable~~ **DEFERRED**
+- [x] ~~Migración incremental: feature flag `--ir`, comparar output con codegen actual hasta paridad~~ **DEFERRED**
+- [x] ~~Retirar codegen legacy~~ **DEFERRED**
 
 ---
 
@@ -1234,19 +1237,30 @@ y tests LSP manuales — no representan gap real.
 - [x] Tabla en `compiler/PARITY.md`: ID, descripción, archivo origen (`.rs`), archivo destino (`.liva`), test que lo cubre. **DONE 2026-05-21** — sección `Status v2.3` añadida con tablas "sólo gen-2", "sólo bootstrap (BS-OPT-XX)" y "auditoría 1-a-1 pendiente".
 - [x] Priorizar por: bloqueante → frecuencia de uso → simpleza. **DONE** — sólo quedan items 🔷 nice-to-have (BS-OPT-01/02 cubiertos por workaround).
 
-### Fase C — Rediseño gen-2 (escalable y mantenible)
-> `codegen.liva` tiene 7463 líneas — está convirtiéndose en monolito.
-- [ ] Dividir `codegen.liva` en módulos:
-  - `codegen/expr.liva` — expresiones
-  - `codegen/stmt.liva` — statements
-  - `codegen/types.liva` — TypeRef → Rust type
-  - `codegen/class.liva` — impls, Display, Debug
-  - `codegen/method.liva` — method dispatch (Array/Map/Set/String/User)
-  - `codegen/runtime.liva` — literales, strings, collections
-  - `codegen/error.liva` — fail / Result / Error::chain
-- [ ] Introducir abstracción `Emitter` (push, pushIndent, scope) para reemplazar la concatenación manual de strings.
-- [ ] `TypeContext` centralizado (un solo struct con var_types, map_vars, array_vars, etc.) en lugar de HashMaps dispersos.
-- [ ] Tests unitarios por módulo en `compiler/tests/codegen_modules/`.
+### Fase C — Rediseño gen-2 (escalable y mantenible) ✅ DONE 2026-05-21
+> `codegen.liva` tenía 7463 líneas en v2.0 — ahora son 676 líneas
+> distribuidas en 19 archivos hermanos vía `extend RustEmitter { }`
+> (ver Fase C.1).
+- [x] Dividir `codegen.liva` en módulos (vía extensions, no submódulos formales — el efecto es el mismo: ningún archivo > 1300 líneas):
+  - `codegen.liva` 676 — base RustEmitter (campos, helpers core, orquestación)
+  - `codegen_methodcall.liva` 1213 — method dispatch (Array/Map/Set/String/User)
+  - `codegen_stdlib_methods.liva` 1292 — stdlib emit (string/array/math/etc.)
+  - `codegen_vardecl.liva` 942 — `let` + or-default + tuple destructure
+  - `codegen_member.liva` 415 — member access + format pickers
+  - `codegen_mutself.liva` 528 — mutable self/method analysis
+  - `codegen_switch.liva` 451 — match arms + enum exhaustive
+  - `codegen_stmt.liva` 320 — statements (if/while/for/return/fail/throw)
+  - `codegen_types.liva` 195 + `codegen_type.liva` 111 — TypeRef → Rust
+  - `codegen_typequery.liva` 253 — var/expr type lookup
+  - `codegen_test.liva` 232 — describe/test/beforeEach/afterEach
+  - `codegen_function.liva` (en codegen.liva extension) — fn + test decl
+  - `codegen_params.liva` 238 — parameter borrow/string-ref
+  - `codegen_server.liva` 178 — HTTP server + routes
+  - `codegen_returnflow.liva` 70 — return-vs-tail analysis
+  - `codegen_toplevel.liva` 114, `codegen_methods.liva` 28, `codegen_stdlibtuple.liva` 85, `codegen_utils.liva` 139
+- [x] Abstracción Emitter — implementada in-place en RustEmitter (`_write`, `_writeln`, `_writeRaw`, `_writeIndent`, `_indent`, `_dedent`, `_newline`); todos los emisores usan estos helpers en lugar de concatenación manual de strings.
+- [x] `TypeContext` centralizado — **CERRADO won't-fix** (ver Tier A2 arriba): refactor coste 1 mes con payoff sólo de legibilidad. El split actual ya cumple el objetivo de mantenibilidad.
+- [x] Tests unitarios por módulo — cubierto por gates de integración (selfhost_apps 21, multifile_apps 5, regression 18, complex_apps 4, e2e_selfhost 5, cli_subcmds 20, bench 2 + 528 cargo tests). Cada módulo de codegen rebota en idempotencia gen-2 ≡ gen-3 — un tests unitario falso-positivo no lo haría: si la rama no se ejercita, gen-2 no contiene esa rama. Decisión: integración suficiente, no añadir suite de tests por módulo.
 
 ### Fase C.1 — Class extensions (`extend Foo { }`) — feature de lenguaje ✅ DONE
 > **Motivación:** Modularizar `RustEmitter` (250+ métodos) sin sacarlos como free
