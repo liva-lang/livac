@@ -1,0 +1,15 @@
+// Microbench: sum 1..N with a tight loop. Should finish in <500ms even on
+// modest hardware in release mode. The bench gate just asserts that
+// `livac bench` succeeds and emits a BENCH line; absolute timings are
+// informational and vary across machines/CI runners.
+
+main() {
+    let N = 1_000_000
+    let acc = 0
+    let i = 1
+    while i <= N {
+        acc += i
+        i += 1
+    }
+    print($"sum_1_to_{N} = {acc}")
+}

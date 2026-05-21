@@ -902,10 +902,13 @@ cargo test --release 528+).
       `inferArrowReturnType`) deben permanecer: son orquestadores o
       están BS-FRAG-1-lock.
 
-- [ ] **A2.** ~~Consolidar los 25+ `Map<string, …>` dispersos en
-      `EmitContext`.~~ **Diferido a v2.1** por el mismo bloqueo que A1
-      — un `EmitContext` requeriría pasarlo por mut-ref a docenas de
-      free functions, que Liva aún no soporta sin clonar.
+- [x] **A2.** ~~Consolidar los 25+ `Map<string, …>` dispersos en
+      `EmitContext`.~~ **CERRADO won't-fix 2026-05-21** — el blocker
+      original (mut-ref a free functions) sigue vigente y el codegen
+      ha ganado >50% más Maps de scoped state en v2.1–2.3. Un
+      `EmitContext` ahora sería refactor ≥1 mes con riesgo alto y
+      payoff de legibilidad únicamente. Reactivar solo si se acomete
+      el split de `codegen.liva` (Bloque "Refactor v2.x").
 
 ### Tier B — Higiene del repo
 
@@ -1136,7 +1139,7 @@ cargo test --release 528+).
 
 - [x] Análisis técnico completo (este bloque)
 - [x] Bench actual confirma 4/4 métricas <1.15x sin esta optimización
-- [ ] (post-v2.0, condicional) Reabrir si nuevo hotpath con Map<K,String>
+- [x] (post-v2.0, condicional) ~~Reabrir si nuevo hotpath con Map<K,String>~~ **CERRADO won't-fix 2026-05-21** — bench v2.3 sigue 4/4 <1.15x, no ha emergido hotpath. Si un usuario reporta uno, se reabre como nueva entrada de backlog.
 
 ### Bloque 3 — Cobertura medida (cargo-llvm-cov) ✅ DONE (baseline)
 
@@ -1159,7 +1162,7 @@ y tests LSP manuales — no representan gap real.
 - [x] **Bug fix descubierto:** `Map.get(k) or default` self-host emitía pattern de tupla inválido — fix en `_emitOptionGetWithDefault`
 - [x] **Bug fix descubierto:** `userFunc() or default` self-host emitía pattern de tupla pero las fns retornan `Result<T, Error>` — fix con switch en `isFreeCall`
 - [x] 5/5 tests E2E PASS, idempotencia gen-2≡gen-3 preservada, 518 cargo tests, bench bajo gate
-- [ ] (opcional) Integrar en `scripts/run_tests.sh` y CI
+- [x] Integrar bench en `run_all.sh` y CI (2026-05-21) — nuevo directorio `compiler/tests/bench/` con `sum_loop.bench.liva` + `array_pipeline.bench.liva` + `run.sh`. Gate añadido a `run_all.sh` entre `e2e_selfhost` y `cargo test --release`. CI lo recoge automáticamente vía `make test-full` / `bash compiler/tests/run_all.sh --quick`. Asserts compilation + BENCH line (sin threshold absoluto — runners CI son demasiado ruidosos).
 
 ### Bloque 5 — Limpieza BACKLOG ✅ DONE
 
@@ -1189,7 +1192,7 @@ y tests LSP manuales — no representan gap real.
 > Cerrado como Bloque 2 de "v2.0 al 100%" tras análisis técnico. **No se implementa en v2.0**. Ver § Bloque 2 arriba para rationale completo.
 
 - [x] Análisis técnico realizado (no hay hotpath con `Map<K, String>` en bench actual; idiom `.get() or default` clona en cualquier caso → sin ahorro de CPU; ahorro de memoria 24B→16B no cambia bench)
-- [ ] (post-v2.0) Reabrir si surge un hotpath con Map<K,String> o se rediseña `.get()` para devolver `&str`
+- [x] (post-v2.0) ~~Reabrir si surge un hotpath con Map<K,String> o se rediseña `.get()` para devolver `&str`~~ **CERRADO won't-fix 2026-05-21** — duplicado de Bloque 2; se reabriría como nueva entrada si emerge.
 
 ### Validación obligatoria por cada item de Fase 10
 

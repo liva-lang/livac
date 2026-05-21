@@ -57,6 +57,7 @@ run_gate "cli_subcmds (gen-2)"      "bash $SCRIPT_DIR/cli_subcmds/run.sh"       
 run_gate "regression"               "bash $SCRIPT_DIR/regression/run.sh"            || OVERALL=1
 run_gate "complex_apps"             "bash $SCRIPT_DIR/complex_apps/run.sh"          || OVERALL=1
 run_gate "e2e_selfhost"             "bash $SCRIPT_DIR/e2e_selfhost.sh"              || OVERALL=1
+run_gate "bench"                    "bash $SCRIPT_DIR/bench/run.sh"                 || OVERALL=1
 run_gate "cargo test --release"     "cargo test --release --quiet 2>&1 | tail -1"   || OVERALL=1
 
 echo ""

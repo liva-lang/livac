@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Added — Bench gate in `run_all.sh` and CI (BACKLOG #1162)
+
+- New `compiler/tests/bench/` directory with two microbenches
+  (`sum_loop.bench.liva`, `array_pipeline.bench.liva`) and a `run.sh`
+  that invokes `livac bench` on each, asserting compilation + the
+  `BENCH … ms` summary line.
+- Wired into `run_all.sh` between `e2e_selfhost` and `cargo test --release`.
+  CI picks it up automatically via `make test-full` /
+  `bash compiler/tests/run_all.sh --quick`. No absolute-time thresholds
+  (CI runners are too noisy); the gate just guards against compilation
+  regressions and runtime panics in benchmark code.
+- 8/8 gates green.
+
 ### Added — `LIVA_STRICT=1` env var to opt into a tighter codegen prelude
 
 - Default behavior unchanged: gen-2 emits a wide `#![allow(...)]` to keep
