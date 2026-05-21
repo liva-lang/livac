@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Performance — Lazy iterator chain fusion (`take`/`drop`)
+
+- `take` and `drop` now participate in the existing `_emitIterPrefix` chain
+  detection alongside `map`/`filter`/`flatMap`. When part of a pipeline they
+  emit `.take((n) as usize)` / `.skip((n) as usize)` instead of slicing into
+  intermediate Vecs.
+- Cadenas como `xs.filter(...).map(...).take(2)` colapsan en un único
+  `xs.iter().copied().filter(...).map(...).take(...).collect::<Vec<_>>()`
+  — sin Vecs intermedios, lazy hasta el `collect` final.
+- Standalone `xs.take(n)` / `xs.drop(n)` mantienen la semántica anterior
+  (slice `[..n]` / `[n..].to_vec()`) para retrocompatibilidad.
+- Regression probe `tests/regression/lazy_iter_chain.liva` cubre 4 patrones
+  (filter→map→take, filter→take, drop→map→take, take→drop). 20/20 regression
+  + 7/7 gates green.
+
 ### Added — Jest-style test suite at `compiler/tests/jest_tests/`
 
 - Three `*.test.liva` files exercising `describe`/`test`/`expect` (and

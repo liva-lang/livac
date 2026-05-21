@@ -615,7 +615,7 @@ extend RustEmitter {
         let isChain = false
         switch obj {
             Expr.MethodCall(_, m2, _) => {
-                if m2 == "map" || m2 == "filter" || m2 == "flatMap" {
+                if m2 == "map" || m2 == "filter" || m2 == "flatMap" || m2 == "take" || m2 == "drop" {
                     isChain = true
                 }
             }
@@ -880,6 +880,26 @@ extend RustEmitter {
             return true
         }
         if method == "take" {
+            // Phase: chain-aware. If we're inside an iterator chain (or the
+            // receiver is itself a chainable iterator method), emit
+            // `.take(n as usize)` and let the upstream/downstream control
+            // .iter()/.collect(). Otherwise fall back to slice form.
+            let upstreamIsChainT = false
+            switch obj {
+                Expr.MethodCall(_, m2, _) => {
+                    if m2 == "map" || m2 == "filter" || m2 == "flatMap" || m2 == "take" || m2 == "drop" {
+                        upstreamIsChainT = true
+                    }
+                }
+            }
+            if this._inIterChain || upstreamIsChainT {
+                this._emitIterPrefix(obj, true)
+                this._write(".take((")
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._write(") as usize)")
+                if not this._inIterChain { this._write(".collect::<Vec<_>>()") }
+                return true
+            }
             this._emitExpr(obj)
             this._write("[..(")
             if args.length > 0 { this._emitExpr(args[0]) }
@@ -887,6 +907,22 @@ extend RustEmitter {
             return true
         }
         if method == "drop" {
+            let upstreamIsChainD = false
+            switch obj {
+                Expr.MethodCall(_, m2, _) => {
+                    if m2 == "map" || m2 == "filter" || m2 == "flatMap" || m2 == "take" || m2 == "drop" {
+                        upstreamIsChainD = true
+                    }
+                }
+            }
+            if this._inIterChain || upstreamIsChainD {
+                this._emitIterPrefix(obj, true)
+                this._write(".skip((")
+                if args.length > 0 { this._emitExpr(args[0]) }
+                this._write(") as usize)")
+                if not this._inIterChain { this._write(".collect::<Vec<_>>()") }
+                return true
+            }
             this._emitExpr(obj)
             this._write("[(")
             if args.length > 0 { this._emitExpr(args[0]) }

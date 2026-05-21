@@ -1,0 +1,22 @@
+// Lazy-iterator chain fusion probe: filter().map().take() should fuse
+// without intermediate Vec allocations. We assert behavior, not codegen.
+
+main() {
+    let xs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+    // filter(even) → [2,4,6,8,10] → map(*2) → [4,8,12,16,20] → take(2) → [4,8]
+    let a = xs.filter(x => x % 2 == 0).map(x => x * 2).take(2)
+    print($"a0={a[0]} a1={a[1]} alen={a.length()}")
+
+    // filter(>3) → [4,5,6,7,8,9,10] → take(3) → [4,5,6]
+    let b = xs.filter(x => x > 3).take(3)
+    print($"b0={b[0]} b2={b[2]} blen={b.length()}")
+
+    // drop(2) → [3..10] → map(*2) → [6,8,10,12,14,16,18,20] → take(3) → [6,8,10]
+    let c = xs.drop(2).map(x => x * 2).take(3)
+    print($"c0={c[0]} c2={c[2]} clen={c.length()}")
+
+    // take(6) → [1..6] → drop(2) → [3,4,5,6]
+    let d = xs.take(6).drop(2)
+    print($"d0={d[0]} d3={d[3]} dlen={d.length()}")
+}

@@ -1385,7 +1385,7 @@ extend RustEmitter {
 - [x] YAML/TOML parsing — módulos nuevos (crates `serde_yaml`/`toml`) (2026-05-19) — reúsan `serde_json::Value`, indexación + JsonValueExt aplican igual que JSON; smoke test `compiler/tests/selfhost_apps/app21_yaml_toml.liva`; docs `docs/language-reference/stdlib/{yaml,toml}.md`.
 - [x] `livac bench` — benchmarking built-in (✅ 2026-05-20: walks `*.bench.liva`, compiles in release mode, times execution via `Date.timestamp()`, summary line `BENCH <file> — XXX ms`. CLI smoke test 13 in `cli_subcmds/run.sh`.)
 - [x] REPL — `livac repl` ✅ MVP DONE (2026-05-20) — sesión interactiva con preámbulo acumulado, comandos `.help`/`.exit`/`.clear`/`.show`, auto-print de expresiones. CLI test 17.
-- [ ] Lazy iterators — fusionar cadenas `filter().map().take()` sin `collect()` intermedios en codegen (optimización de rendimiento para arrays grandes)
+- [x] Lazy iterators — fusionar cadenas `filter().map().take()/drop()` sin `collect()` intermedios en codegen (2026-05-21) — `take`/`drop` ahora chain-aware via `_emitIterPrefix`; emiten `.take((n) as usize)` / `.skip((n) as usize)` cuando son parte de un pipeline; cadenas tipo `xs.filter(...).map(...).take(2)` colapsan en un único `.iter().copied()...collect::<Vec<_>>()` sin Vecs intermedios. Probe `tests/regression/lazy_iter_chain.liva`.
 
 ---
 
