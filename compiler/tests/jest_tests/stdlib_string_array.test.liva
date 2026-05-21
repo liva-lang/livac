@@ -1,0 +1,59 @@
+// Jest-style tests for String/Array stdlib — no `main fn`.
+import { describe, test, expect } from "liva/test"
+
+describe("string basics", () => {
+    test("length counts chars", () => {
+        expect("hello".length()).toBe(5)
+        expect("".length()).toBe(0)
+    })
+    test("toUpperCase / toLowerCase", () => {
+        expect("Liva".toUpperCase()).toBe("LIVA")
+        expect("LIVA".toLowerCase()).toBe("liva")
+    })
+    test("contains / indexOf", () => {
+        expect("hello world".contains("world")).toBe(true)
+        expect("hello world".contains("zzz")).toBe(false)
+        expect("hello world".indexOf("world")).toBe(6)
+    })
+    test("trim removes leading/trailing whitespace", () => {
+        expect("  hello  ".trim()).toBe("hello")
+    })
+    test("split returns parts", () => {
+        let parts = "a,b,c".split(",")
+        expect(parts.length()).toBe(3)
+        expect(parts[0]).toBe("a")
+        expect(parts[2]).toBe("c")
+    })
+})
+
+describe("array basics", () => {
+    test("push and length", () => {
+        let xs: [int] = []
+        xs.push(1)
+        xs.push(2)
+        xs.push(3)
+        expect(xs.length()).toBe(3)
+        expect(xs[2]).toBe(3)
+    })
+    test("map doubles every element", () => {
+        expect([1, 2, 3].map(x => x * 2)).toBe([2, 4, 6])
+    })
+    test("filter keeps even numbers", () => {
+        expect([1, 2, 3, 4, 5, 6].filter(x => x % 2 == 0)).toBe([2, 4, 6])
+    })
+    test("reduce sums to 15", () => {
+        let xs = [1, 2, 3, 4, 5]
+        let s = xs.reduce(0, (acc, x) => acc + x)
+        expect(s).toBe(15)
+    })
+})
+
+describe("array predicates", () => {
+    test("any matches at least one", () => {
+        expect([1, 2, 3, 4, 5].some(x => x > 4)).toBeTruthy()
+    })
+    test("every matches all", () => {
+        expect([2, 4, 6].every(x => x % 2 == 0)).toBeTruthy()
+        expect([2, 4, 5].every(x => x % 2 == 0)).toBeFalsy()
+    })
+})

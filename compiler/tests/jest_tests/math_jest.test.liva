@@ -1,0 +1,45 @@
+// Jest-style tests for Math stdlib — no `main fn`, runner picks up describe/test.
+import { describe, test, beforeEach, afterEach, expect } from "liva/test"
+
+describe("Math.abs", () => {
+    test("positive numbers unchanged", () => {
+        expect(Math.abs(5.0)).toBe(5.0)
+        expect(Math.abs(0.0)).toBe(0.0)
+    })
+    test("negative numbers flipped", () => {
+        expect(Math.abs(-7.0)).toBe(7.0)
+    })
+})
+
+describe("Math.pow", () => {
+    test("powers of two", () => {
+        expect(Math.pow(2.0, 0.0)).toBe(1.0)
+        expect(Math.pow(2.0, 3.0)).toBe(8.0)
+        expect(Math.pow(2.0, 10.0)).toBe(1024.0)
+    })
+})
+
+describe("Math.clamp", () => {
+    beforeEach(() => {
+        // Hook side effect: sanity check the runner.
+        expect(1).toBe(1)
+    })
+
+    test("value below low clamps to low", () => {
+        expect(Math.clamp(-10.0, 0.0, 100.0)).toBe(0.0)
+    })
+    test("value above high clamps to high", () => {
+        expect(Math.clamp(250.0, 0.0, 100.0)).toBe(100.0)
+    })
+    test("in-range value unchanged", () => {
+        expect(Math.clamp(42.0, 0.0, 100.0)).toBe(42.0)
+    })
+})
+
+describe("Math.sqrt", () => {
+    test("perfect squares", () => {
+        expect(Math.sqrt(0.0)).toBe(0.0)
+        expect(Math.sqrt(16.0)).toBe(4.0)
+        expect(Math.sqrt(2.25)).toBe(1.5)
+    })
+})

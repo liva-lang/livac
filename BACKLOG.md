@@ -1037,7 +1037,7 @@ cargo test --release 528+).
 ### Pendiente — out-of-scope estructural
 
 - [x] **Test framework Jest-style — `beforeEach`/`afterEach` lifecycle hooks.** **DONE 2026-05-19** — `codegen_test.liva` 2-pass walk over `describe()` body: pass 1 collects `beforeEach(() => {...})` / `afterEach(() => {...})` lambda bodies into new `RustEmitter._testBeforeEach` / `_testAfterEach` `[Stmt]` fields; pass 2 emits tests (skipping hook calls). Each `#[test]` body wraps a synthetic `BlockStmt` with `[before..., body..., after...]` so `_emitBlock` peephole optimizations still apply. Nested `describe()` save/restore outer hooks. CLI test 16 added (16/16 pass), full gates 7/7 green.
-- [ ] Test framework Jest-style completo: `async.test.liva`, `math_jest.test.liva`, `stdlib_*.test.liva` (sin `main fn` — test runner debe ejecutar `test_*` funciones).
+- [x] Test framework Jest-style completo — `compiler/tests/jest_tests/` con `math_jest.test.liva` (Math.abs/pow/clamp/sqrt — 7 tests), `stdlib_string_array.test.liva` (string + array methods — 11 tests), `composition.test.liva` (function composition + Map/Set/control flow — 6 tests). Sin `main fn`. CLI tests 18a/b/c añadidos: corren `livac test` + `cargo test --quiet` sobre el crate generado para verificar que los `#[test]` interiores pasan realmente (el runner aún reporta "PASS" cuando el cargo build falla — ver TODO compiler-internal). 20/20 cli_subcmds + 7/7 gates verdes 2026-05-21.
 
 ### Push pendiente
 

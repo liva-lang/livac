@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Added — Jest-style test suite at `compiler/tests/jest_tests/`
+
+- Three `*.test.liva` files exercising `describe`/`test`/`expect` (and
+  `beforeEach`) **without `main fn`**:
+  - `math_jest.test.liva` — Math.abs / Math.pow / Math.clamp / Math.sqrt (7 tests).
+  - `stdlib_string_array.test.liva` — string ops + array map/filter/reduce + `some`/`every` (11 tests).
+  - `composition.test.liva` — function composition + Map/Set sanity + if/switch (6 tests).
+- New CLI tests 18a/18b/18c run `livac test <file>` then `cargo test --quiet`
+  on the generated crate. The cargo step is the real gate — the Liva test
+  runner currently reports "PASS" even when the generated crate fails to
+  compile (separate compiler-internal TODO; not blocking jest-tests delivery).
+- 20/20 cli_subcmds + 7/7 gates green; total 24 inner `#[test]`s pass.
+
 ### Docs — `compiler/PARITY.md` resynced to v2.3 reality
 
 - New `Status v2.3 (2026-05-21 audit)` section documents the post-F.1–F.5

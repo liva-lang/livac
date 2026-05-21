@@ -471,6 +471,40 @@ else
     check_fail "livac repl" "rc=$rc; log:\n$(cat "$T17/log")"
 fi
 
+# ---------------------------------------------------------------------------
+# Tests 18a/b/c — Jest-style test suite in compiler/tests/jest_tests/.
+# Each *.test.liva file exercises describe/test/expect (and beforeEach where
+# relevant) without a `main fn`. We additionally run `cargo test --quiet`
+# on the generated crate to assert the inner #[test] functions all pass —
+# the Liva test runner currently reports "PASS" even when the generated
+# crate fails to compile, so this is the real gate.
+JESTDIR="$LIVAC_ROOT/compiler/tests/jest_tests"
+for jf in "$JESTDIR"/math_jest.test.liva \
+          "$JESTDIR"/stdlib_string_array.test.liva \
+          "$JESTDIR"/composition.test.liva; do
+    name=$(basename "$jf" .test.liva)
+    T="$OUT/jest_$name"; mkdir -p "$T"
+    rm -rf "$LIVAC_ROOT/target/liva_test"
+    "$G2" test "$jf" > "$T/log" 2>&1
+    rc=$?
+    if [[ $rc -ne 0 ]]; then
+        check_fail "livac test $name (runner)" "rc=$rc; log:\n$(tail -10 "$T/log")"
+        continue
+    fi
+    if [[ ! -d "$LIVAC_ROOT/target/liva_test" ]]; then
+        check_fail "livac test $name (build dir)" "missing target/liva_test"
+        continue
+    fi
+    (cd "$LIVAC_ROOT/target/liva_test" && cargo test --quiet > "$T/cargo.log" 2>&1)
+    crc=$?
+    if [[ $crc -eq 0 ]] && grep -qE "test result: ok" "$T/cargo.log"; then
+        npass=$(grep -oE "[0-9]+ passed" "$T/cargo.log" | head -1)
+        check_ok "livac test $name ($npass via cargo test)"
+    else
+        check_fail "livac test $name (cargo test)" "rc=$crc; log:\n$(tail -15 "$T/cargo.log")"
+    fi
+done
+
 echo "===================="
 echo "  CLI subcmds: $PASS pass / $FAIL fail"
 [[ $FAIL -eq 0 ]]
