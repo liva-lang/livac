@@ -321,7 +321,10 @@ mod workspace_index_tests {
         index.index_file(uri.clone(), &ast, source);
         let first_count = index.symbol_count();
         let first_files = index.file_count();
-        assert!(first_count >= 1, "expected at least one symbol after first index");
+        assert!(
+            first_count >= 1,
+            "expected at least one symbol after first index"
+        );
         assert_eq!(first_files, 1);
 
         // Re-index the same file: should not grow the symbol count.
@@ -333,6 +336,10 @@ mod workspace_index_tests {
         let greet = index
             .lookup_global("greet")
             .expect("greet should be globally indexed");
-        assert_eq!(greet.len(), 1, "duplicate workspace-symbol entries after reindex");
+        assert_eq!(
+            greet.len(),
+            1,
+            "duplicate workspace-symbol entries after reindex"
+        );
     }
 }

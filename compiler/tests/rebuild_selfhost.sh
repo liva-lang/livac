@@ -28,6 +28,10 @@ if [[ -n "${LIVAC_BOOTSTRAP:-}" ]]; then
     BOOTSTRAP="$LIVAC_BOOTSTRAP"
 elif [[ -x "$REPO_ROOT/target/livac-bootstrap" ]]; then
     BOOTSTRAP="$REPO_ROOT/target/livac-bootstrap"
+elif [[ -x "$REPO_ROOT/bootstrap/seed/livac-linux-amd64" && "$(uname)" == "Linux" ]]; then
+    # CI seed: pre-built gen-2 binary committed to bypass BS-FRAG bugs in the
+    # frozen Rust bootstrap. Kept at bootstrap/seed/ (gitignore excludes target/).
+    BOOTSTRAP="$REPO_ROOT/bootstrap/seed/livac-linux-amd64"
 else
     BOOTSTRAP="$REPO_ROOT/target/release/livac"
 fi
