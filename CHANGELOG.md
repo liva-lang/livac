@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Added — `LIVA_STRICT=1` env var to opt into a tighter codegen prelude
+
+- Default behavior unchanged: gen-2 emits a wide `#![allow(...)]` to keep
+  generated Rust quiet across all the unavoidable codegen patterns.
+- With `LIVA_STRICT=1 livac build foo.liva` the preamble drops to only
+  `unused_imports, unused_parens, dead_code, non_snake_case` — the four
+  warnings that the codegen genuinely cannot avoid. `unused_variables`,
+  `unused_mut`, `unused_assignments`, `unreachable_code` and `while_true`
+  surface from rustc, giving the user actionable feedback on dead code.
+- 7/7 gates green; idempotent gen-2 ≡ gen-3.
+
 ### Fixed — Test runner no longer silently passes broken tests
 
 - `livac test` now correctly reports FAIL when the generated cargo crate

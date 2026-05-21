@@ -105,7 +105,15 @@ extend RustEmitter {
         // Inner attributes (#![allow(...)]) only valid at crate root (main module)
         // use statements needed in every module that uses HashMap/HashSet
         if this._isMainModule {
-            this._writeln("#![allow(unused_imports, unused_variables, unused_mut, unused_parens, dead_code, unused_assignments, unreachable_code, non_snake_case, while_true)]")
+            // Strict mode (LIVA_STRICT=1) keeps the unavoidable allows but lets
+            // genuinely user-actionable warnings (unused vars/mut/assignments,
+            // unreachable, while_true) surface for inspection.
+            let strict = Sys.env("LIVA_STRICT")
+            if strict == "1" or strict == "true" {
+                this._writeln("#![allow(unused_imports, unused_parens, dead_code, non_snake_case)]")
+            } else {
+                this._writeln("#![allow(unused_imports, unused_variables, unused_mut, unused_parens, dead_code, unused_assignments, unreachable_code, non_snake_case, while_true)]")
+            }
             // ERR-UNIFY: emit minimal liva_rt module with Error struct so user code
             // can return Result<T, liva_rt::Error> with chained-error trace support.
             this._writeln("#[allow(dead_code)]")
