@@ -285,7 +285,7 @@
 - [x] Mantener estado entre líneas (variables persisten en el preámbulo)
 - [x] Mostrar resultado de expresiones (auto-wrap con `print(...)`)
 - [x] Comandos `.help`, `.exit`, `.quit`, `.clear`, `.show`
-- [ ] Historial con readline (requiere crate `rustyline` — fuera de MVP)
+- [x] Historial con readline ✅ DONE 2026-05-21 — `use rust "rustyline" version "14"` declarado en `compiler/src/main.liva`; helper `_replReadline(prompt)` envuelve `rustyline::DefaultEditor::readline` en un `RefCell` thread-local, manejando Ctrl-C/D vía sentinel `__REPL_EOF__`. `add_history_entry` mantiene historial in-session; flechas ↑/↓ navegan líneas previas. CLI test 17 sigue pasando.
 - [x] Tests (CLI subcommand test 17: pipe `.help`/`.exit`, verifica banner)
 
 ### Linter / Warnings ✅

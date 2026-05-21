@@ -66,6 +66,8 @@ import { codegenGenerateExtensionLoaded } from "./codegen_generate"
 import { sanitizeFieldName, extractModuleName } from "./codegen_utils"
 import { ModuleResolver, LivaModule } from "./module"
 
+use rust "rustyline" version "14"
+
 const LIVA_COMPILER_VERSION = "2.2.0"
 
 // =====================================================================
@@ -1396,6 +1398,35 @@ _fileBaseName(path: string): string {
 // The compile/run cycle reuses a single `target/liva_repl/` build dir so
 // cargo's incremental compilation caches the heavy work across iterations.
 
+// Read one line from the REPL using rustyline (arrow-key history + Ctrl-C/D).
+// The thread-local Editor persists across calls so in-session history works.
+//
+// Returns the line on success, or "__REPL_EOF__" on Ctrl-D / Ctrl-C / error.
+_replReadline(prompt: string): string {
+    let result: string = rust {
+        use std::cell::RefCell;
+        thread_local! {
+            static EDITOR: RefCell<rustyline::DefaultEditor> = RefCell::new(
+                rustyline::DefaultEditor::new()
+                    .unwrap_or_else(|_| panic!("rustyline init failed"))
+            );
+        }
+        EDITOR.with(|cell| {
+            let mut ed = cell.borrow_mut();
+            match ed.readline(&prompt) {
+                Ok(line) => {
+                    ed.add_history_entry(line.as_str()).ok();
+                    line
+                }
+                Err(rustyline::error::ReadlineError::Interrupted) => "__REPL_EOF__".to_string(),
+                Err(rustyline::error::ReadlineError::Eof)         => "__REPL_EOF__".to_string(),
+                Err(_)                                            => "__REPL_EOF__".to_string(),
+            }
+        })
+    }
+    return result
+}
+
 _replIsDeclaration(line: string): bool {
     let prefixes = ["let ", "const ", "import ", "class ", "enum ", "type ", "use rust"]
     for p in prefixes {
@@ -1425,7 +1456,7 @@ _replPrintHelp() {
 
 _runReplCommand(opts: CliOptions) {
     print($"🪐 Liva REPL v{LIVA_COMPILER_VERSION}")
-    print("Type .help for commands, .exit to quit.")
+    print("Type .help for commands, .exit (or Ctrl-D) to quit.")
     print("")
 
     let outputDir = "target/liva_repl"
@@ -1433,21 +1464,19 @@ _runReplCommand(opts: CliOptions) {
     ensureDir(outputDir + "/src")
 
     let preamble: [string] = []
-    let emptyStreak = 0
 
     while true {
-        let line = Sys.input("liva> ")
+        let line = _replReadline("liva> ")
 
-        // Detect piped EOF: many consecutive empty reads with no .exit.
+        // Ctrl-D / Ctrl-C / rustyline EOF → quit.
+        if line == "__REPL_EOF__" {
+            print("")
+            return
+        }
+
         if line == "" {
-            emptyStreak += 1
-            if emptyStreak >= 3 {
-                print("")
-                return
-            }
             continue
         }
-        emptyStreak = 0
 
         // -- REPL meta commands --
         if line == ".exit" or line == ".quit" {
@@ -1480,11 +1509,9 @@ _runReplCommand(opts: CliOptions) {
             prog = prog + d + "\n"
         }
         if isDecl {
-            // Append the new decl, then a stub main.
             prog = prog + line + "\n"
             prog = prog + "main() {}\n"
         } else {
-            // Wrap as expression: try println($"{...}") for value display.
             prog = prog + "main() {\n"
             prog = prog + "    println($\"{ " + line + " }\")\n"
             prog = prog + "}\n"
@@ -1496,7 +1523,6 @@ _runReplCommand(opts: CliOptions) {
             for err in result.errors {
                 print($"  error: {err}")
             }
-            // Don't pollute preamble with a broken decl.
             continue
         }
 
@@ -1504,7 +1530,6 @@ _runReplCommand(opts: CliOptions) {
         let runCmd = "cd " + outputDir + " && cargo build 2>&1 && ./target/debug/main 2>&1"
         let output = Process.exec(runCmd) or "REPL_RUN_FAILED"
 
-        // Filter cargo noise; show only the program's stdout.
         let lines = output.split("\n")
         for o in lines {
             let trimmed = o.trim()
@@ -1517,7 +1542,6 @@ _runReplCommand(opts: CliOptions) {
             print(o)
         }
 
-        // Commit the declaration on success only.
         if isDecl {
             preamble.push(line)
         }

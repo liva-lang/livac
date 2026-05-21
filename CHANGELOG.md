@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Added — REPL line history via `rustyline`
+
+- `livac repl` now reads input through `rustyline::DefaultEditor` (declared
+  via `use rust "rustyline" version "14"` in `compiler/src/main.liva`).
+- The Editor is held in a thread-local `RefCell` so history survives across
+  iterations of the REPL loop. `add_history_entry` is called on every line.
+- Ctrl-C / Ctrl-D / readline errors all map to a `__REPL_EOF__` sentinel
+  that exits the loop cleanly (replaces the previous "3 consecutive empty
+  reads" heuristic, which is no longer needed).
+- Arrow keys ↑/↓ navigate previously-entered lines; Ctrl-A/E/U/W and the
+  rest of the standard readline shortcuts work out of the box.
+
 ### Fixed — LSP workspace index leaks symbols across re-indexing
 
 - `WorkspaceIndex::index_file` now removes the file's previous symbol entries
