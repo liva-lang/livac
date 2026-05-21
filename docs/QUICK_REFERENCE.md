@@ -352,13 +352,24 @@ livac test any-file.liva
 The runner prints `[PASS] test_addition`, `[FAIL] test_string_concat`
 and exits non-zero on any failure.
 
-### Roadmap (`liva/test`, v2.x)
+### Jest-style API (`liva/test`, v2.3+)
 
-`describe(name, fn)` / `test(name, fn)` / `expect(x).toBe(y)` plus
-matchers (`toContain`, `toBeTruthy`, `.not.*`) and lifecycle hooks
-(`beforeAll`, `afterEach`, …) will land as a stdlib module once the
-runtime supports closures-as-handlers stably across modules. Tracked
-in `BACKLOG § Fase 11 → C8`.
+```liva
+import { describe, test, beforeEach, expect } from "liva/test"
+
+describe("Math.clamp", () => {
+    test("below low clamps", () => {
+        expect(Math.clamp(-10.0, 0.0, 100.0)).toBe(0.0)
+    })
+})
+```
+
+Matchers: `.toBe`, `.toEqual`, `.toContain`, `.toBeTruthy`, `.toBeFalsy`,
+`.toBeNull`, `.toBeGreaterThan`, `.toBeLessThan` and `.not.<matcher>`.
+Hooks: `beforeAll`, `afterAll`, `beforeEach`, `afterEach`. See
+[`docs/guides/cli-tools.md`](guides/cli-tools.md) for the full guide,
+plus `livac test --coverage`, `livac bench`, `livac doc` and
+`livac repl`.
 
 ---
 

@@ -126,6 +126,7 @@ Practical tutorials and best practices.
 | [Generics Quick Start](guides/generics-quick-start.md) | Using generics effectively |
 | [JSON Typed Parsing](guides/json-typed-parsing.md) | Type-safe JSON handling |
 | [Module Best Practices](guides/module-best-practices.md) | Organizing large projects |
+| [CLI Tools](guides/cli-tools.md) | `repl`, `doc`, `test --coverage`, `bench`, Jest API |
 | [Tuples](guides/tuples.md) | Working with tuple types |
 | [Trait Aliases](guides/trait-aliases-guide.md) | Creating reusable constraints |
 | [Destructuring Migration](guides/MIGRATION_DESTRUCTURING_v0.10.2.md) | Upgrading to v0.10.2 destructuring |
