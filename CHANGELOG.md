@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Fixed — Test runner no longer silently passes broken tests
+
+- `livac test` now correctly reports FAIL when the generated cargo crate
+  fails to compile. Previously, if rustc emitted `error[E…]` (e.g. type
+  mismatch) the runner fell through and reported `PASS` because it only
+  checked for the `FAILED`/`panicked` substrings. Added explicit detection
+  of `error[E` / `error: could not compile` and a default-FAIL fallthrough
+  for any unrecognized cargo output.
+- `fail "msg"` inside `test "..." { … }` blocks (legacy syntax) and
+  `test()` cases (jest-style) now emits `panic!("{}", …)` instead of
+  `return Err(liva_rt::Error::from(…))`. The tests are emitted as
+  `fn test_<x>()` (no return type), so `return Err(...)` was producing
+  a rustc E0308 mismatched-types compile error — silently masked by the
+  bug above.
+- `_emitTestDecl` now sets `_inTestBlock = true` so `Stmt.Fail` can pick
+  the panic form. Both legacy and jest test bodies share the same flag.
+- Probe: a synthetic test with a deliberate type mismatch is now flagged
+  `FAIL … (generated crate did not compile)` with the rustc error inline.
+
 ### Performance — Lazy iterator chain fusion (`take`/`drop`)
 
 - `take` and `drop` now participate in the existing `_emitIterPrefix` chain

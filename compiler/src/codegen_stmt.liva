@@ -163,13 +163,25 @@ extend RustEmitter {
                     }
                 }
                 if failIsErrBind {
-                    this._write("return Err(liva_rt::Error::from(")
-                    this._write(failErrName)
-                    this._write(".as_ref().unwrap().message.clone()));")
+                    if this._inTestBlock {
+                        this._write("panic!(\"{}\", ")
+                        this._write(failErrName)
+                        this._write(".as_ref().unwrap().message.clone());")
+                    } else {
+                        this._write("return Err(liva_rt::Error::from(")
+                        this._write(failErrName)
+                        this._write(".as_ref().unwrap().message.clone()));")
+                    }
                 } else {
-                    this._write("return Err(liva_rt::Error::from(format!(\"{}\", ")
-                    this._emitExpr(failExpr)
-                    this._write(")));")
+                    if this._inTestBlock {
+                        this._write("panic!(\"{}\", format!(\"{}\", ")
+                        this._emitExpr(failExpr)
+                        this._write("));")
+                    } else {
+                        this._write("return Err(liva_rt::Error::from(format!(\"{}\", ")
+                        this._emitExpr(failExpr)
+                        this._write(")));")
+                    }
                 }
                 this._newline()
             },

@@ -207,6 +207,7 @@ extend RustEmitter {
         let prevStrRefParams = this._strRefParams
         let prevErrBindings = this._errBindings
         let prevTruthyErrBindings = this._truthyErrBindings
+        let prevInTest = this._inTestBlock
         this._currentFunc = "test_" + testName
         this._currentFuncBorrowKey = "test_" + testName
         this._currentFuncIsMethod = false
@@ -215,6 +216,7 @@ extend RustEmitter {
         this._strRefParams = Map {}
         this._errBindings = Map {}
         this._truthyErrBindings = Map {}
+        this._inTestBlock = true
         this._emitBlock(decl.body)
         this._dedent()
         this._writeln("}")
@@ -225,6 +227,7 @@ extend RustEmitter {
         this._strRefParams = prevStrRefParams
         this._errBindings = prevErrBindings
         this._truthyErrBindings = prevTruthyErrBindings
+        this._inTestBlock = prevInTest
     }
 }
 

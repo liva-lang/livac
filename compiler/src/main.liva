@@ -1084,33 +1084,30 @@ _runTestCommand(opts: CliOptions) {
             } else if testOutput == "CARGO_TEST_FAILED" {
                 print($" FAIL {tfCopy} (cargo test failed)")
                 failCount += 1
-            } else {
-                // Check for test failures
-                if testOutput.contains("FAILED") || testOutput.contains("panicked") {
-                    print($" FAIL {tfCopy}")
-                    // Extract failure info
-                    let outputLines = testOutput.split("\n")
-                    for line in outputLines {
-                        if line.contains("FAILED") || line.contains("panicked") || line.contains("assertion") {
-                            print($"  {line}")
-                        }
+            } else if testOutput.contains("error[E") || testOutput.contains("error: could not compile") {
+                // Generated crate failed to compile — surface the rustc error.
+                print($" FAIL {tfCopy} (generated crate did not compile)")
+                let errLines = testOutput.split("\n")
+                for line in errLines {
+                    if line.startsWith("error[") || line.startsWith("error: ") || line.contains("--> ") {
+                        print($"  {line}")
                     }
-                    failCount += 1
-                } else {
-                    let numTests = _extractTestCount(testOutput)
-                    if opts.coverage {
-                        print($" PASS {tfCopy} ({numTests} tests)")
-                        let covLines = testOutput.split("\n")
-                        for line in covLines {
-                            if line.startsWith("Filename") || line.startsWith("---") || line.startsWith("TOTAL") {
-                                print($"  {line}")
-                            }
-                        }
-                    } else {
-                        print($" PASS {tfCopy} ({numTests} tests)")
-                    }
-                    passCount += 1
                 }
+                failCount += 1
+            } else if testOutput.contains("FAILED") || testOutput.contains("panicked") {
+                // Test ran but assertions failed.
+                print($" FAIL {tfCopy}")
+                let outputLines = testOutput.split("\n")
+                for line in outputLines {
+                    if line.contains("FAILED") || line.contains("panicked") || line.contains("assertion") {
+                        print($"  {line}")
+                    }
+                }
+                failCount += 1
+            } else {
+                // Unknown state — treat as failure rather than silently passing.
+                print($" FAIL {tfCopy} (cargo test produced no recognizable result)")
+                failCount += 1
             }
         }
     }
