@@ -1227,9 +1227,9 @@ y tests LSP manuales — no representan gap real.
 - [x] Actualizar BACKLOG y ROADMAP con la decisión.
 
 ### Fase B — Inventario de paridad
-- [ ] Listar cada feature/bug del bootstrap NO portado a gen-2.
-- [ ] Tabla en `compiler/PARITY.md`: ID, descripción, archivo origen (`.rs`), archivo destino (`.liva`), test que lo cubre.
-- [ ] Priorizar por: bloqueante → frecuencia de uso → simpleza.
+- [x] Listar cada feature/bug del bootstrap NO portado a gen-2 (ver `compiler/PARITY.md § Status v2.3`).
+- [x] Tabla en `compiler/PARITY.md`: ID, descripción, archivo origen (`.rs`), archivo destino (`.liva`), test que lo cubre. **DONE 2026-05-21** — sección `Status v2.3` añadida con tablas "sólo gen-2", "sólo bootstrap (BS-OPT-XX)" y "auditoría 1-a-1 pendiente".
+- [x] Priorizar por: bloqueante → frecuencia de uso → simpleza. **DONE** — sólo quedan items 🔷 nice-to-have (BS-OPT-01/02 cubiertos por workaround).
 
 ### Fase C — Rediseño gen-2 (escalable y mantenible)
 > `codegen.liva` tiene 7463 líneas — está convirtiéndose en monolito.

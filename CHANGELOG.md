@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — v2.3
 
+### Docs — `compiler/PARITY.md` resynced to v2.3 reality
+
+- New `Status v2.3 (2026-05-21 audit)` section documents the post-F.1–F.5
+  workspace split: bootstrap FROZEN, gen-2 active, `liva-tools` shared.
+- Tables list features that exist **only in gen-2** (REPL, doc, bench,
+  test --coverage, Jest hooks, WS, YAML/TOML) and features that exist
+  **only in bootstrap** (BS-OPT-01/02 — both have gen-2 workarounds and
+  are 🔷 nice-to-have).
+- Tier 2 error handling (B127–B133, B138, B139) marked done — all
+  covered by `selfhost_apps` 21/21 + `err_unify_gen2.test.liva` 5/5.
+- Backlog Fase B (Inventario de paridad) closed — only 🔷 items remain.
+
 ### Added — REPL line history via `rustyline`
 
 - `livac repl` now reads input through `rustyline::DefaultEditor` (declared

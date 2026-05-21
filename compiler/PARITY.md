@@ -245,3 +245,94 @@ Antes de portar masivo, gen-2 necesita esto para ser **escalable**:
 5. **Error handling completo (Tier 2):**
    - app8_orders, app9_graph, app12_tree, app17_pipeline — requiere `liva_rt::Error` migration
 
+---
+
+## Status v2.3 (2026-05-21 audit)
+
+### Estado actual del split bootstrap ↔ gen-2
+
+Tras Phases F.1–F.5, los dos compiladores conviven en el workspace:
+
+| Componente              | Ubicación                             | Estado                                     |
+|-------------------------|---------------------------------------|---------------------------------------------|
+| Rust bootstrap          | `livac/bootstrap/src/*.rs`            | **FROZEN** (ver `bootstrap/src/FROZEN.md`) |
+| Liva self-host (gen-2)  | `livac/compiler/src/*.liva`           | Activo — todas las features nuevas aquí    |
+| Runtime compartido      | `livac/runtime/src/lib.rs`            | Activo — usado por ambos via crate `liva_rt` |
+| Tooling (fmt/lint/LSP)  | `livac/liva-tools/src/*.rs`           | Activo (Rust) — usado por ambos vía dispatch |
+
+**Regla de oro post-F.3:** todas las features nuevas se implementan en
+gen-2. El bootstrap sólo se actualiza para fixes críticos que también
+afectan a gen-2 (ej.: bugs en `liva_rt`).
+
+### Features que existen SOLO en gen-2 (bootstrap NO las tiene)
+
+Listadas para que quede claro qué se perdería si alguien intentara
+volver al bootstrap como compilador principal:
+
+| Feature                        | Ubicación gen-2                          | Versión | Notas |
+|--------------------------------|------------------------------------------|---------|-------|
+| `livac repl` (REPL interactivo + history) | `compiler/src/main.liva` `_runReplCommand` | v2.3    | Usa `rustyline` via `use rust` |
+| `livac doc` (extrae `///`)     | `compiler/src/main.liva` `_runDocCommand`  | v2.2    | Genera Markdown |
+| `livac bench`                  | `compiler/src/main.liva` `_runBenchCommand`| v2.2    | Compila `*.bench.liva` en release |
+| `livac test --coverage`        | `compiler/src/main.liva` (test runner)     | v2.2    | Vía `cargo-llvm-cov` |
+| Jest hooks (`beforeEach`/`afterEach`) | `compiler/src/codegen_test.liva` | v2.3 | 2-pass walk + synthetic BlockStmt |
+| WS module (`tungstenite`)      | `compiler/src/codegen_methodcall.liva`     | v2.2    | Sync WebSocket client |
+| YAML/TOML stdlib               | `compiler/src/codegen_methodcall.liva`     | v2.2    | Reúsa `serde_json::Value` |
+| `Sys.input(prompt)`            | `compiler/src/codegen_methodcall.liva:355` | v2.0    | Bootstrap también lo tiene; mantenido para paridad |
+
+> Si alguna de estas features muestra un bug, se diagnostica leyendo
+> directamente `compiler/src/*.liva` — no hace falta consultar el
+> bootstrap. El bootstrap tampoco lleva los handlers `documentSymbol`,
+> `workspace/symbol` ni la deduplicación de re-índice del LSP (todo en
+> `liva-tools/`).
+
+### Features que existen SOLO en bootstrap (gen-2 NO las tiene)
+
+A día de hoy, ninguna que sea bloqueante. Las siguientes son optimizaciones
+o paths poco usados que el bootstrap implementa pero gen-2 NO:
+
+| ID         | Feature                                    | Origen bootstrap                      | Workaround gen-2                | Prioridad |
+|------------|--------------------------------------------|---------------------------------------|---------------------------------|-----------|
+| BS-OPT-01  | `console.input()` sin prompt               | `codegen.rs:13583` (`io::stdin().read_line`) | `Sys.input("")` funciona igual  | 🔷 nice-to-have |
+| BS-OPT-02  | `readLine()` builtin (no Sys-namespaced)   | `codegen.rs:10071`                    | `Sys.input("")` cubre el caso   | 🔷 nice-to-have |
+| GAP-CLOSURE-LET | `let f = (x) => ...; f(1)` por identifier | bootstrap parser ya FROZEN aquí | inline lambda funciona | 🔷 documentado |
+
+> Tier 2 (`?`-operator + `liva_rt::Error` migration) **ya está
+> portado**: `selfhost_apps/app8_orders`, `app9_graph`, `app12_tree`,
+> `app17_pipeline` — todos pasan en gen-2. La columna "Mapea a" de la
+> tabla de errores observados de Phase 10 es histórica.
+
+### Features migradas pero sin test directo (TODO auditoría 1-a-1)
+
+| ID        | Feature                                | Cobertura indirecta                |
+|-----------|----------------------------------------|------------------------------------|
+| AUDIT-01  | `Math.clamp` integer no-cast           | covered por `selfhost_apps` 21/21 |
+| AUDIT-02  | Per-class transitive mut-self analysis | dogfooding-v1 GradeBook + `complex_apps` |
+| AUDIT-03  | Cross-module enum Default suppression  | `multifile_apps/m4_enum`           |
+
+> Si alguno regresiona, los gates lo capturan. La auditoría 1-a-1
+> queda como deuda menor — no bloquea releases.
+
+### Métricas v2.3 (2026-05-21)
+
+- Bootstrap LOC (Rust): **33.6k** (incluye `liva_rt_template.rs.in` que
+  se compila como parte de `runtime/`).
+- Gen-2 LOC (Liva): **20.5k** distribuidos en 32 archivos `*.liva`.
+- Gen-2 codegen: 30 archivos `codegen_*.liva` (modular, ~600–1500 LOC c/u).
+- 7/7 gates verdes (selfhost_apps, multifile_apps, cli_subcmds 17/17,
+  regression, complex_apps, e2e_selfhost, cargo test --release).
+- Idempotencia: gen-2 ≡ gen-3 (src + binary) tras cada commit.
+
+### Cómo seguir cerrando paridad
+
+1. Si aparece un bug que **sólo** ocurre con bootstrap → encogerlo a un
+   probe + mover a `BS-OPT-XX` arriba si ya tiene workaround en gen-2,
+   o reabrir issue si es bloqueante.
+2. Si aparece un bug que **sólo** ocurre con gen-2 → fixear gen-2,
+   añadir test al gate apropiado, regenerar 4-stage idempotente.
+3. **Nunca** modificar `bootstrap/src/*.rs` excepto:
+   - Fix en `liva_rt` (afecta ambos).
+   - Bug de fragilidad documentado en `BUGS.md § BS-FRAG-*`.
+
+---
+
