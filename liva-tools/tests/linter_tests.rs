@@ -400,3 +400,174 @@ main() {
     assert!(output.contains("W001"));
     assert!(output.contains("warning"));
 }
+
+// ─── W005: Shadowed variable ───────────────────────────────────
+
+#[test]
+fn w005_shadowed_in_if_block() {
+    let codes = lint_codes(
+        r#"
+main() {
+    let x = 1
+    if true {
+        let x = 2
+        console.log(x)
+    }
+    console.log(x)
+}
+"#,
+    );
+    assert!(codes.iter().any(|c| c == "W005"), "expected W005, got {:?}", codes);
+}
+
+#[test]
+fn w005_param_shadowed_by_local() {
+    let codes = lint_codes(
+        r#"
+double(x) {
+    if true {
+        let x = 99
+        return x
+    }
+    return x
+}
+"#,
+    );
+    assert!(codes.iter().any(|c| c == "W005"));
+}
+
+#[test]
+fn w005_no_warning_disjoint_scopes() {
+    let codes = lint_codes(
+        r#"
+main() {
+    if true {
+        let a = 1
+        console.log(a)
+    }
+    if true {
+        let a = 2
+        console.log(a)
+    }
+}
+"#,
+    );
+    assert!(!codes.iter().any(|c| c == "W005"));
+}
+
+#[test]
+fn w005_underscore_suppresses() {
+    let codes = lint_codes(
+        r#"
+main() {
+    let x = 1
+    if true {
+        let _x = 2
+        console.log(_x)
+    }
+    console.log(x)
+}
+"#,
+    );
+    assert!(!codes.iter().any(|c| c == "W005"));
+}
+
+// ─── W006: Empty block ─────────────────────────────────────────
+
+#[test]
+fn w006_empty_if_block() {
+    let codes = lint_codes(
+        r#"
+main() {
+    if true {
+    }
+}
+"#,
+    );
+    assert!(codes.iter().any(|c| c == "W006"));
+}
+
+#[test]
+fn w006_empty_while_block() {
+    let codes = lint_codes(
+        r#"
+main() {
+    while false {
+    }
+}
+"#,
+    );
+    assert!(codes.iter().any(|c| c == "W006"));
+}
+
+#[test]
+fn w006_no_warning_non_empty() {
+    let codes = lint_codes(
+        r#"
+main() {
+    if true {
+        console.log("ok")
+    }
+}
+"#,
+    );
+    assert!(!codes.iter().any(|c| c == "W006"));
+}
+
+// ─── W007: Unused parameter ────────────────────────────────────
+
+#[test]
+fn w007_unused_param() {
+    let w007: Vec<_> = lint_source(
+        r#"
+greet(name, age) {
+    console.log(name)
+}
+"#,
+    )
+    .into_iter()
+    .filter(|w| w.code == "W007")
+    .collect();
+    assert_eq!(w007.len(), 1);
+    assert!(w007[0].message.contains("'age'"));
+}
+
+#[test]
+fn w007_underscore_suppresses() {
+    let codes = lint_codes(
+        r#"
+greet(name, _unused) {
+    console.log(name)
+}
+"#,
+    );
+    assert!(!codes.iter().any(|c| c == "W007"));
+}
+
+#[test]
+fn w007_no_warning_when_used() {
+    let codes = lint_codes(
+        r#"
+add(a, b) {
+    return a + b
+}
+"#,
+    );
+    assert!(!codes.iter().any(|c| c == "W007"));
+}
+
+#[test]
+fn w007_class_method_self_excluded() {
+    // Methods on classes — the W007 rule should still suppress 'self'
+    // and only fire on truly unused params. Here 'x' is used.
+    let codes = lint_codes(
+        r#"
+Foo {
+    name: string
+    constructor(name: string) { this.name = name }
+    bar(x) => x
+}
+"#,
+    );
+    assert!(!codes.iter().any(|c| c == "W007"));
+}

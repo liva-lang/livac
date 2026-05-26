@@ -175,7 +175,7 @@ skills/liva-lang/
 - **Process (4 funciones):** run, output, spawn, exit (`std::process`)
 - **HTTP Server (6 funciones):** Server.create, app.get/post/put/delete, app.listen + req.params/body + Response.text/json/status (crate `axum` 0.8 + `tokio` auto-inyectados)
 - **DB (4 funciones):** DB.open, DB.exec, DB.query, DB.close (crate `rusqlite` 0.32 bundled auto-inyectado)
-- **Linter (4 warnings):** W001 unused var, W002 unused import, W003 unreachable code, W004 always true/false — `livac lint <file> [--json]`
+- **Linter (7 warnings):** W001 unused var, W002 unused import, W003 unreachable code, W004 always true/false, W005 shadowed variable, W006 empty block, W007 unused parameter — `livac lint <file> [--json]`
 
 ---
 

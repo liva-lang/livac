@@ -138,6 +138,61 @@ if 42 == 42 { ... }       // W004: always true
 
 ---
 
+### W005 — Shadowed variable
+
+Emitted when a binding (let / const / for-variable) re-uses the name of an
+identifier already declared in an enclosing scope, including function
+parameters.
+
+```liva
+main() {
+    let x = 1
+    if true {
+        let x = 2        // W005: 'x' shadows outer binding
+        console.log(x)
+    }
+}
+```
+
+Disabling: prefix the inner binding with `_`, or rename it.
+
+---
+
+### W006 — Empty block
+
+Emitted when an `if`, `else`, `while`, or `for` body has no statements.
+Usually a leftover from refactoring or an unfinished placeholder.
+
+```liva
+main() {
+    if ready {
+                         // W006: empty 'if' block
+    }
+}
+```
+
+Disabling: add a comment inside the block to make the intent explicit,
+or remove the construct.
+
+---
+
+### W007 — Unused parameter
+
+Emitted when a function or method declares a parameter whose name never
+appears in the body.
+
+```liva
+greet(name, age) {       // W007: 'age' is never used
+    console.log(name)
+}
+```
+
+Disabling: prefix the parameter with `_` (e.g. `_age`). `self` is never
+flagged. Parameters of empty-bodied stubs (interface impls) are not
+treated specially — wrap with `_` if appropriate.
+
+---
+
 ## JSON Output
 
 For IDE integration, pass `--json`:

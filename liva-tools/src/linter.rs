@@ -2,7 +2,7 @@ use colored::Colorize;
 /// Linter module for Liva
 ///
 /// Runs static analysis on the parsed AST to detect code smells and warnings.
-/// Warnings use W-codes (W001-W004) and are non-blocking — compilation proceeds.
+/// Warnings use W-codes (W001-W007) and are non-blocking — compilation proceeds.
 ///
 /// ## Warning Codes
 ///
@@ -10,6 +10,9 @@ use colored::Colorize;
 /// - **W002**: Import declared but never used
 /// - **W003**: Unreachable code after `return` or `fail`
 /// - **W004**: Comparison is always true or always false
+/// - **W005**: Variable shadows an outer-scope binding
+/// - **W006**: Empty block (if / else / while / for body)
+/// - **W007**: Function parameter declared but never used
 use livac::ast::*;
 use livac::span::SourceMap;
 use std::collections::{HashMap, HashSet};
@@ -123,6 +126,9 @@ impl Linter {
         self.check_unused_variables(program);
         self.check_unreachable_code(program);
         self.check_always_true_false(program);
+        self.check_shadowed_variables(program);
+        self.check_empty_blocks(program);
+        self.check_unused_parameters(program);
         self.warnings.clone()
     }
 
@@ -1185,6 +1191,392 @@ impl Linter {
             Literal::Null => "null".to_string(),
         }
     }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// W005 / W006 / W007 — additions
+// ──────────────────────────────────────────────────────────────────
+
+impl Linter {
+    // ───────────────────────────────────────────────────────────
+    // W005: Variable shadows an outer-scope binding
+    // ───────────────────────────────────────────────────────────
+
+    fn check_shadowed_variables(&mut self, program: &Program) {
+        for item in &program.items {
+            match item {
+                TopLevel::Function(f) => {
+                    let mut scopes: Vec<HashSet<String>> = vec![HashSet::new()];
+                    for param in &f.params {
+                        if let Some(name) = param.name() {
+                            scopes[0].insert(name.to_string());
+                        }
+                    }
+                    if let Some(body) = &f.body {
+                        self.shadow_walk_block(body, &mut scopes, 0);
+                    }
+                }
+                TopLevel::Class(class) => {
+                    for member in &class.members {
+                        if let Member::Method(method) = member {
+                            let mut scopes: Vec<HashSet<String>> = vec![HashSet::new()];
+                            for param in &method.params {
+                                if let Some(name) = param.name() {
+                                    scopes[0].insert(name.to_string());
+                                }
+                            }
+                            if let Some(body) = &method.body {
+                                self.shadow_walk_block(body, &mut scopes, 0);
+                            }
+                        }
+                    }
+                }
+                TopLevel::Test(test) => {
+                    let mut scopes: Vec<HashSet<String>> = vec![HashSet::new()];
+                    self.shadow_walk_block(&test.body, &mut scopes, 0);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn shadow_walk_block(
+        &mut self,
+        block: &BlockStmt,
+        scopes: &mut Vec<HashSet<String>>,
+        last_line: usize,
+    ) {
+        scopes.push(HashSet::new());
+        let mut last_line = last_line;
+        for stmt in &block.stmts {
+            self.shadow_walk_stmt(stmt, scopes, &mut last_line);
+        }
+        scopes.pop();
+    }
+
+    fn shadow_walk_stmt(
+        &mut self,
+        stmt: &Stmt,
+        scopes: &mut Vec<HashSet<String>>,
+        last_line: &mut usize,
+    ) {
+        match stmt {
+            Stmt::VarDecl(decl) => {
+                for binding in &decl.bindings {
+                    self.shadow_check_pattern(&binding.pattern, scopes, last_line);
+                }
+            }
+            Stmt::ConstDecl(decl) => {
+                let name = &decl.name;
+                self.shadow_report_if_outer(name, scopes, last_line);
+                if let Some(top) = scopes.last_mut() {
+                    top.insert(name.clone());
+                }
+            }
+            Stmt::If(if_stmt) => {
+                if let IfBody::Block(b) = &if_stmt.then_branch {
+                    self.shadow_walk_block(b, scopes, *last_line);
+                }
+                if let Some(else_branch) = &if_stmt.else_branch {
+                    if let IfBody::Block(b) = else_branch {
+                        self.shadow_walk_block(b, scopes, *last_line);
+                    }
+                }
+            }
+            Stmt::While(w) => {
+                self.shadow_walk_block(&w.body, scopes, *last_line);
+            }
+            Stmt::For(for_stmt) => {
+                // for-bound variables introduce a new scope; check shadowing
+                scopes.push(HashSet::new());
+                self.shadow_report_if_outer(&for_stmt.var, scopes, last_line);
+                if let Some(top) = scopes.last_mut() {
+                    top.insert(for_stmt.var.clone());
+                }
+                if let Some(v2) = &for_stmt.var2 {
+                    self.shadow_report_if_outer(v2, scopes, last_line);
+                    if let Some(top) = scopes.last_mut() {
+                        top.insert(v2.clone());
+                    }
+                }
+                self.shadow_walk_block(&for_stmt.body, scopes, *last_line);
+                scopes.pop();
+            }
+            Stmt::Block(b) => {
+                self.shadow_walk_block(b, scopes, *last_line);
+            }
+            Stmt::TryCatch(tc) => {
+                self.shadow_walk_block(&tc.try_block, scopes, *last_line);
+                self.shadow_walk_block(&tc.catch_block, scopes, *last_line);
+            }
+            _ => {}
+        }
+    }
+
+    fn shadow_check_pattern(
+        &mut self,
+        pattern: &BindingPattern,
+        scopes: &mut Vec<HashSet<String>>,
+        last_line: &mut usize,
+    ) {
+        let names = collect_pattern_names(pattern);
+        for name in names {
+            self.shadow_report_if_outer(&name, scopes, last_line);
+            if let Some(top) = scopes.last_mut() {
+                top.insert(name);
+            }
+        }
+    }
+
+    fn shadow_report_if_outer(
+        &mut self,
+        name: &str,
+        scopes: &Vec<HashSet<String>>,
+        last_line: &mut usize,
+    ) {
+        if name.starts_with('_') {
+            return;
+        }
+        // Look in all outer scopes (everything except the current top)
+        let depth = scopes.len();
+        if depth < 2 {
+            return;
+        }
+        let shadowed = scopes[..depth - 1].iter().any(|s| s.contains(name));
+        if !shadowed {
+            return;
+        }
+
+        let line = self.estimate_var_line(name, *last_line);
+        *last_line = line;
+        self.warnings.push(LintWarning {
+            code: "W005".to_string(),
+            title: "Shadowed variable".to_string(),
+            message: format!("'{}' shadows a binding from an outer scope", name),
+            file: self.source_file.clone(),
+            line,
+            column: None,
+            source_line: self.source_line_at(line),
+            help: Some(format!(
+                "Rename this binding (e.g. '{}_inner') or prefix with '_' to suppress.",
+                name
+            )),
+        });
+    }
+
+    // ───────────────────────────────────────────────────────────
+    // W006: Empty block
+    // ───────────────────────────────────────────────────────────
+
+    fn check_empty_blocks(&mut self, program: &Program) {
+        for item in &program.items {
+            match item {
+                TopLevel::Function(f) => {
+                    if let Some(body) = &f.body {
+                        self.empty_walk_block(body, 0);
+                    }
+                }
+                TopLevel::Class(class) => {
+                    for member in &class.members {
+                        if let Member::Method(method) = member {
+                            if let Some(body) = &method.body {
+                                self.empty_walk_block(body, 0);
+                            }
+                        }
+                    }
+                }
+                TopLevel::Test(test) => {
+                    self.empty_walk_block(&test.body, 0);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn empty_walk_block(&mut self, block: &BlockStmt, last_line: usize) {
+        let mut last_line = last_line;
+        for stmt in &block.stmts {
+            self.empty_check_stmt(stmt, &mut last_line);
+        }
+    }
+
+    fn empty_check_stmt(&mut self, stmt: &Stmt, last_line: &mut usize) {
+        match stmt {
+            Stmt::If(if_stmt) => {
+                if let IfBody::Block(b) = &if_stmt.then_branch {
+                    if b.stmts.is_empty() {
+                        let line = self.find_line_containing("if ", *last_line);
+                        *last_line = line;
+                        self.warn_empty("if", line);
+                    } else {
+                        self.empty_walk_block(b, *last_line);
+                    }
+                }
+                if let Some(IfBody::Block(b)) = &if_stmt.else_branch {
+                    if b.stmts.is_empty() {
+                        let line = self.find_line_containing("else", *last_line);
+                        *last_line = line;
+                        self.warn_empty("else", line);
+                    } else {
+                        self.empty_walk_block(b, *last_line);
+                    }
+                }
+            }
+            Stmt::While(w) => {
+                if w.body.stmts.is_empty() {
+                    let line = self.find_line_containing("while ", *last_line);
+                    *last_line = line;
+                    self.warn_empty("while", line);
+                } else {
+                    self.empty_walk_block(&w.body, *last_line);
+                }
+            }
+            Stmt::For(for_stmt) => {
+                if for_stmt.body.stmts.is_empty() {
+                    let line = self.find_line_containing(
+                        &format!("for {}", for_stmt.var),
+                        *last_line,
+                    );
+                    *last_line = line;
+                    self.warn_empty("for", line);
+                } else {
+                    self.empty_walk_block(&for_stmt.body, *last_line);
+                }
+            }
+            Stmt::Block(b) => {
+                if !b.stmts.is_empty() {
+                    self.empty_walk_block(b, *last_line);
+                }
+            }
+            Stmt::TryCatch(tc) => {
+                self.empty_walk_block(&tc.try_block, *last_line);
+                self.empty_walk_block(&tc.catch_block, *last_line);
+            }
+            _ => {}
+        }
+    }
+
+    fn warn_empty(&mut self, kind: &str, line: usize) {
+        self.warnings.push(LintWarning {
+            code: "W006".to_string(),
+            title: "Empty block".to_string(),
+            message: format!("Empty '{}' block", kind),
+            file: self.source_file.clone(),
+            line,
+            column: None,
+            source_line: self.source_line_at(line),
+            help: Some(
+                "Remove the block, or add a comment explaining why it is intentionally empty."
+                    .to_string(),
+            ),
+        });
+    }
+
+    // ───────────────────────────────────────────────────────────
+    // W007: Function parameter declared but never used
+    // ───────────────────────────────────────────────────────────
+
+    fn check_unused_parameters(&mut self, program: &Program) {
+        for item in &program.items {
+            match item {
+                TopLevel::Function(f) => {
+                    self.check_params(&f.name, &f.params, f.body.as_ref(), f.expr_body.as_ref());
+                }
+                TopLevel::Class(class) => {
+                    for member in &class.members {
+                        if let Member::Method(method) = member {
+                            // Skip interface impl candidates if the body is empty —
+                            // they're stubs by design. We still warn on real bodies.
+                            self.check_params(
+                                &method.name,
+                                &method.params,
+                                method.body.as_ref(),
+                                method.expr_body.as_ref(),
+                            );
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn check_params(
+        &mut self,
+        fn_name: &str,
+        params: &[Param],
+        body: Option<&BlockStmt>,
+        expr_body: Option<&Expr>,
+    ) {
+        if params.is_empty() {
+            return;
+        }
+        let mut used: HashSet<String> = HashSet::new();
+        if let Some(b) = body {
+            self.collect_var_usages_block(b, &mut used);
+        }
+        if let Some(e) = expr_body {
+            self.collect_var_usages_expr(e, &mut used);
+        }
+
+        for param in params {
+            let Some(name) = param.name() else { continue };
+            if name.starts_with('_') || name == "self" {
+                continue;
+            }
+            if used.contains(name) {
+                continue;
+            }
+            let line = self.find_line_containing(&format!("fn {}", fn_name), 0);
+            let line = if line == 1 {
+                self.find_line_containing(fn_name, 0)
+            } else {
+                line
+            };
+            self.warnings.push(LintWarning {
+                code: "W007".to_string(),
+                title: "Unused parameter".to_string(),
+                message: format!("Parameter '{}' of '{}' is never used", name, fn_name),
+                file: self.source_file.clone(),
+                line,
+                column: None,
+                source_line: self.source_line_at(line),
+                help: Some(format!(
+                    "Prefix with underscore to suppress: _{}",
+                    name
+                )),
+            });
+        }
+    }
+}
+
+/// Collect all identifier names introduced by a binding pattern.
+fn collect_pattern_names(pattern: &BindingPattern) -> Vec<String> {
+    let mut out = Vec::new();
+    match pattern {
+        BindingPattern::Identifier(name) => out.push(name.clone()),
+        BindingPattern::Object(obj) => {
+            for field in &obj.fields {
+                out.push(field.binding.clone());
+            }
+        }
+        BindingPattern::Array(arr) => {
+            for elem in &arr.elements {
+                if let Some(name) = elem {
+                    out.push(name.clone());
+                }
+            }
+            if let Some(rest) = &arr.rest {
+                out.push(rest.clone());
+            }
+        }
+        BindingPattern::Tuple(tup) => {
+            for name in &tup.elements {
+                out.push(name.clone());
+            }
+        }
+    }
+    out
 }
 
 // ──────────────────────────────────────────────────────────────────
