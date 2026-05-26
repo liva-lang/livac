@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [Unreleased] — Post-2.3 LSP & linter improvements
+
+### LSP — new providers
+- **Go to Implementation** (`textDocument/implementation`) — interface → concrete classes + method overrides.
+- **Document Highlight** (`textDocument/documentHighlight`).
+- **Selection Range** (`textDocument/selectionRange`) — word → line → document chain.
+- **Rename** (`textDocument/rename`) — workspace-wide for globally-indexed symbols, intra-file for locals; validates the new identifier.
+- **Document Link** (`textDocument/documentLink`) — `import "..."` paths resolved to clickable URIs.
+- **Folding Range** (`textDocument/foldingRange`) — brace blocks (string/comment-aware), `import` groups, and `//` comment blocks of 3+ lines.
+- **Code Actions** (`textDocument/codeAction`) — QuickFix entries for `W001` / `W007` (prefix with `_`), `W002` (remove unused import), `W003` (remove unreachable code).
+- **Cross-file hover** — falls back to the workspace index when a symbol isn't defined in the current file.
+
+### LSP — diagnostics
+- Linter warnings (`W001`-`W008`) are now published as LSP diagnostics with severity `Warning`, `code` set to the warning ID, and `source = "liva-lint"`.
+
+### Linter — 4 new rules (total 8)
+- `W005` — variable shadows an outer-scope binding.
+- `W006` — empty block in `if` / `else` / `while` / `for`.
+- `W007` — function parameter declared but never used.
+- `W008` — unnecessary `else` after a diverging branch (`return` / `throw` / `fail` / `break` / `continue`).
+
 ## [2.3.0] — 2026-05-21 — Tooling completion: REPL, doc, bench, coverage, Jest hooks
 
 ### Backlog cleanup — closed all v2.x non-3.x items as either done, deferred, or won't-fix
