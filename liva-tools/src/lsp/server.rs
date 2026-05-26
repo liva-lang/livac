@@ -1196,35 +1196,16 @@ impl LanguageServer for LivaLanguageServer {
         if let Some(symbols) = &doc.symbols {
             if let Some(symbol_list) = symbols.lookup(&word) {
                 if let Some(symbol) = symbol_list.first() {
-                    // Format hover content as Markdown
-                    let mut content = String::new();
-
-                    // Add symbol kind and name
-                    let kind_str = match symbol.kind {
-                        SymbolKind::FUNCTION => "function",
-                        SymbolKind::CLASS => "class",
-                        SymbolKind::STRUCT => "interface",
-                        SymbolKind::TYPE_PARAMETER => "type",
-                        SymbolKind::VARIABLE => "variable",
-                        SymbolKind::CONSTANT => "constant",
-                        _ => "symbol",
-                    };
-
-                    content.push_str(&format!("```liva\n{} {}\n```\n", kind_str, symbol.name));
-
-                    // Add detail if available
-                    if let Some(detail) = &symbol.detail {
-                        content.push_str(&format!("\n{}", detail));
-                    }
-
-                    return Ok(Some(Hover {
-                        contents: HoverContents::Markup(MarkupContent {
-                            kind: MarkupKind::Markdown,
-                            value: content,
-                        }),
-                        range: Some(symbol.range),
-                    }));
+                    return Ok(Some(symbol_hover(symbol)));
                 }
+            }
+        }
+
+        // Fall back to the workspace index — surface hover info for symbols
+        // defined in other files (cross-file functions, classes, enums...).
+        if let Some(entries) = self.workspace_index.lookup_global(&word) {
+            if let Some((_, symbol)) = entries.first() {
+                return Ok(Some(symbol_hover(symbol)));
             }
         }
 
@@ -1410,8 +1391,39 @@ fn expand_word_range(line: &str, pos: tower_lsp::lsp_types::Position) -> Option<
     })
 }
 
+/// Format a `Symbol` as a markdown Hover payload.
+fn symbol_hover(symbol: &crate::lsp::symbols::Symbol) -> Hover {
+    let kind_str = match symbol.kind {
+        SymbolKind::FUNCTION => "function",
+        SymbolKind::METHOD => "method",
+        SymbolKind::CLASS => "class",
+        SymbolKind::INTERFACE => "interface",
+        SymbolKind::STRUCT => "interface",
+        SymbolKind::ENUM => "enum",
+        SymbolKind::ENUM_MEMBER => "enum variant",
+        SymbolKind::TYPE_PARAMETER => "type",
+        SymbolKind::VARIABLE => "variable",
+        SymbolKind::CONSTANT => "constant",
+        SymbolKind::FIELD => "field",
+        SymbolKind::PROPERTY => "property",
+        _ => "symbol",
+    };
+
+    let mut content = format!("```liva\n{} {}\n```\n", kind_str, symbol.name);
+    if let Some(detail) = &symbol.detail {
+        content.push_str(&format!("\n{}", detail));
+    }
+
+    Hover {
+        contents: HoverContents::Markup(MarkupContent {
+            kind: MarkupKind::Markdown,
+            value: content,
+        }),
+        range: Some(symbol.range),
+    }
+}
+
 /// Word-boundary search for `word` over `source`, returning LSP `Range`s.
-/// Used by cross-file rename when a file is not currently open in the editor.
 fn find_word_ranges_in_source(source: &str, word: &str) -> Vec<tower_lsp::lsp_types::Range> {
     let mut ranges = Vec::new();
     if word.is_empty() {
