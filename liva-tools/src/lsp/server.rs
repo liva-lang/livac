@@ -167,6 +167,7 @@ impl LanguageServer for LivaLanguageServer {
                     resolve_provider: Some(false),
                     work_done_progress_options: Default::default(),
                 }),
+                folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
@@ -960,6 +961,23 @@ impl LanguageServer for LivaLanguageServer {
         Ok(Some(links))
     }
 
+    async fn folding_range(
+        &self,
+        params: FoldingRangeParams,
+    ) -> Result<Option<Vec<FoldingRange>>> {
+        let uri = &params.text_document.uri;
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+        let ranges = compute_folding_ranges(&doc.text);
+        if ranges.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(ranges))
+        }
+    }
+
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
@@ -1190,4 +1208,172 @@ fn expand_word_range(line: &str, pos: tower_lsp::lsp_types::Position) -> Option<
         start: tower_lsp::lsp_types::Position { line: pos.line, character: start as u32 },
         end: tower_lsp::lsp_types::Position { line: pos.line, character: end as u32 },
     })
+}
+
+/// Compute folding ranges for `text` by matching `{`/`}` pairs and collapsing
+/// consecutive `import` lines and `//` line-comment blocks.
+///
+/// Strings and comments are skipped while scanning braces so they don't throw
+/// the matcher off. Single-line braces (`{ }` on the same line) are not folded.
+fn compute_folding_ranges(text: &str) -> Vec<FoldingRange> {
+    let mut ranges = Vec::new();
+    let lines: Vec<&str> = text.lines().collect();
+
+    // 1. Brace-based regions.
+    let mut stack: Vec<(u32, u32)> = Vec::new(); // (line, character)
+    for (line_idx, line) in lines.iter().enumerate() {
+        let bytes = line.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            let b = bytes[i];
+            match b {
+                b'/' if i + 1 < bytes.len() && bytes[i + 1] == b'/' => break, // line comment
+                b'"' => {
+                    // Skip string literal, honoring escapes.
+                    i += 1;
+                    while i < bytes.len() && bytes[i] != b'"' {
+                        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+                            i += 2;
+                            continue;
+                        }
+                        i += 1;
+                    }
+                }
+                b'{' => stack.push((line_idx as u32, i as u32)),
+                b'}' => {
+                    if let Some((start_line, start_char)) = stack.pop() {
+                        if (line_idx as u32) > start_line {
+                            ranges.push(FoldingRange {
+                                start_line,
+                                start_character: Some(start_char),
+                                end_line: line_idx as u32,
+                                end_character: Some(i as u32),
+                                kind: Some(FoldingRangeKind::Region),
+                                collapsed_text: None,
+                            });
+                        }
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+    }
+
+    // 2. Consecutive `import` lines.
+    let is_import = |s: &str| s.trim_start().starts_with("import ");
+    let mut idx = 0;
+    while idx < lines.len() {
+        if is_import(lines[idx]) {
+            let start = idx;
+            while idx < lines.len() && is_import(lines[idx]) {
+                idx += 1;
+            }
+            let end = idx - 1;
+            if end > start {
+                ranges.push(FoldingRange {
+                    start_line: start as u32,
+                    start_character: None,
+                    end_line: end as u32,
+                    end_character: None,
+                    kind: Some(FoldingRangeKind::Imports),
+                    collapsed_text: None,
+                });
+            }
+        } else {
+            idx += 1;
+        }
+    }
+
+    // 3. Consecutive `//` comment lines (3+ lines).
+    let is_line_comment = |s: &str| s.trim_start().starts_with("//");
+    let mut idx = 0;
+    while idx < lines.len() {
+        if is_line_comment(lines[idx]) {
+            let start = idx;
+            while idx < lines.len() && is_line_comment(lines[idx]) {
+                idx += 1;
+            }
+            let end = idx - 1;
+            if end >= start + 2 {
+                ranges.push(FoldingRange {
+                    start_line: start as u32,
+                    start_character: None,
+                    end_line: end as u32,
+                    end_character: None,
+                    kind: Some(FoldingRangeKind::Comment),
+                    collapsed_text: None,
+                });
+            }
+        } else {
+            idx += 1;
+        }
+    }
+
+    ranges
+}
+
+#[cfg(test)]
+mod folding_tests {
+    use super::compute_folding_ranges;
+    use tower_lsp::lsp_types::FoldingRangeKind;
+
+    #[test]
+    fn folds_function_body() {
+        let src = "greet(name) {\n    print(\"hi\")\n    print(name)\n}\n";
+        let ranges = compute_folding_ranges(src);
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].start_line, 0);
+        assert_eq!(ranges[0].end_line, 3);
+    }
+
+    #[test]
+    fn does_not_fold_single_line_braces() {
+        let src = "f() { 42 }\n";
+        assert!(compute_folding_ranges(src).is_empty());
+    }
+
+    #[test]
+    fn ignores_braces_in_strings() {
+        let src = "f() {\n    let s = \"{not a brace}\"\n}\n";
+        let ranges = compute_folding_ranges(src);
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].start_line, 0);
+        assert_eq!(ranges[0].end_line, 2);
+    }
+
+    #[test]
+    fn folds_import_block() {
+        let src = "import \"std/io\"\nimport \"std/math\"\nimport \"std/str\"\n\nmain() { }\n";
+        let ranges = compute_folding_ranges(src);
+        let imports: Vec<_> = ranges
+            .iter()
+            .filter(|r| r.kind == Some(FoldingRangeKind::Imports))
+            .collect();
+        assert_eq!(imports.len(), 1);
+        assert_eq!(imports[0].start_line, 0);
+        assert_eq!(imports[0].end_line, 2);
+    }
+
+    #[test]
+    fn folds_comment_block_of_three_or_more() {
+        let src = "// a\n// b\n// c\ncode\n";
+        let ranges = compute_folding_ranges(src);
+        let comments: Vec<_> = ranges
+            .iter()
+            .filter(|r| r.kind == Some(FoldingRangeKind::Comment))
+            .collect();
+        assert_eq!(comments.len(), 1);
+    }
+
+    #[test]
+    fn does_not_fold_two_comment_lines() {
+        let src = "// a\n// b\ncode\n";
+        let ranges = compute_folding_ranges(src);
+        let comments: Vec<_> = ranges
+            .iter()
+            .filter(|r| r.kind == Some(FoldingRangeKind::Comment))
+            .collect();
+        assert!(comments.is_empty());
+    }
 }
