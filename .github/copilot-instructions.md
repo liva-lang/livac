@@ -176,7 +176,7 @@ skills/liva-lang/
 - **HTTP Server (6 funciones):** Server.create, app.get/post/put/delete, app.listen + req.params/body + Response.text/json/status (crate `axum` 0.8 + `tokio` auto-inyectados)
 - **DB (4 funciones):** DB.open, DB.exec, DB.query, DB.close (crate `rusqlite` 0.32 bundled auto-inyectado)
 - **Linter (8 warnings):** W001 unused var, W002 unused import, W003 unreachable code, W004 always true/false, W005 shadowed variable, W006 empty block, W007 unused parameter, W008 unnecessary `else` after diverging branch — `livac lint <file> [--json]`
-- **LSP capabilities:** completion, hover, signature, definition, **implementation**, references, document/workspace symbols, document highlight, selection range, **folding range**, document link (imports), **rename** (intra-file), formatting, diagnostics — `livac lsp`
+- **LSP capabilities:** completion, hover, signature, definition, **implementation**, references, document/workspace symbols, document highlight, selection range, **folding range**, document link (imports), **rename** (workspace-wide for global symbols), **code actions** (quick fixes for W001/W002/W003/W007), formatting, diagnostics (compiler errors + **linter warnings** W001-W008) — `livac lsp`
 
 ---
 

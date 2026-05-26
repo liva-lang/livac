@@ -184,6 +184,7 @@ impl LanguageServer for LivaLanguageServer {
                 document_formatting_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 workspace: Some(WorkspaceServerCapabilities {
                     workspace_folders: Some(WorkspaceFoldersServerCapabilities {
                         supported: Some(true),
@@ -1021,6 +1022,143 @@ impl LanguageServer for LivaLanguageServer {
             return Ok(None);
         }
         Ok(Some(links))
+    }
+
+    async fn code_action(
+        &self,
+        params: CodeActionParams,
+    ) -> Result<Option<CodeActionResponse>> {
+        let uri = &params.text_document.uri;
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+
+        let mut actions: Vec<CodeActionOrCommand> = Vec::new();
+
+        for diag in &params.context.diagnostics {
+            let code = match &diag.code {
+                Some(NumberOrString::String(s)) => s.as_str(),
+                _ => continue,
+            };
+
+            match code {
+                // W002 — unused import → remove the entire line.
+                "W002" => {
+                    let line = diag.range.start.line;
+                    let edit = TextEdit {
+                        range: Range {
+                            start: Position { line, character: 0 },
+                            end: Position { line: line + 1, character: 0 },
+                        },
+                        new_text: String::new(),
+                    };
+                    let mut changes = std::collections::HashMap::new();
+                    changes.insert(uri.clone(), vec![edit]);
+                    actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                        title: "Remove unused import".to_string(),
+                        kind: Some(CodeActionKind::QUICKFIX),
+                        diagnostics: Some(vec![diag.clone()]),
+                        edit: Some(WorkspaceEdit {
+                            changes: Some(changes),
+                            document_changes: None,
+                            change_annotations: None,
+                        }),
+                        is_preferred: Some(true),
+                        ..Default::default()
+                    }));
+                }
+
+                // W001 — unused variable → prefix the identifier with `_`.
+                // W007 — unused parameter → same fix.
+                "W001" | "W007" => {
+                    if let Some(line_text) = doc.text.lines().nth(diag.range.start.line as usize) {
+                        let col = diag.range.start.character as usize;
+                        // Find the identifier start at/near `col`.
+                        let bytes = line_text.as_bytes();
+                        let mut start = col.min(bytes.len());
+                        while start > 0
+                            && (bytes[start - 1].is_ascii_alphanumeric() || bytes[start - 1] == b'_')
+                        {
+                            start -= 1;
+                        }
+                        // Find the identifier end.
+                        let mut end = start;
+                        while end < bytes.len()
+                            && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_')
+                        {
+                            end += 1;
+                        }
+                        if end > start && !line_text[start..end].starts_with('_') {
+                            let name = &line_text[start..end];
+                            let edit = TextEdit {
+                                range: Range {
+                                    start: Position {
+                                        line: diag.range.start.line,
+                                        character: start as u32,
+                                    },
+                                    end: Position {
+                                        line: diag.range.start.line,
+                                        character: end as u32,
+                                    },
+                                },
+                                new_text: format!("_{}", name),
+                            };
+                            let mut changes = std::collections::HashMap::new();
+                            changes.insert(uri.clone(), vec![edit]);
+                            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                                title: format!("Prefix `{}` with `_` to silence warning", name),
+                                kind: Some(CodeActionKind::QUICKFIX),
+                                diagnostics: Some(vec![diag.clone()]),
+                                edit: Some(WorkspaceEdit {
+                                    changes: Some(changes),
+                                    document_changes: None,
+                                    change_annotations: None,
+                                }),
+                                is_preferred: Some(true),
+                                ..Default::default()
+                            }));
+                        }
+                    }
+                }
+
+                // W003 — unreachable code → delete from the diagnostic start
+                // to end of file (a conservative quick fix; the user can undo).
+                "W003" => {
+                    let line = diag.range.start.line;
+                    let last_line = doc.text.lines().count().max(1) as u32 - 1;
+                    let edit = TextEdit {
+                        range: Range {
+                            start: Position { line, character: 0 },
+                            end: Position { line: last_line + 1, character: 0 },
+                        },
+                        new_text: String::new(),
+                    };
+                    let mut changes = std::collections::HashMap::new();
+                    changes.insert(uri.clone(), vec![edit]);
+                    actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                        title: "Remove unreachable code".to_string(),
+                        kind: Some(CodeActionKind::QUICKFIX),
+                        diagnostics: Some(vec![diag.clone()]),
+                        edit: Some(WorkspaceEdit {
+                            changes: Some(changes),
+                            document_changes: None,
+                            change_annotations: None,
+                        }),
+                        is_preferred: Some(false),
+                        ..Default::default()
+                    }));
+                }
+
+                _ => {}
+            }
+        }
+
+        if actions.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(actions))
+        }
     }
 
     async fn folding_range(
