@@ -571,3 +571,78 @@ Foo {
     );
     assert!(!codes.iter().any(|c| c == "W007"));
 }
+
+// ─────────────────────────────────────────────────────────────
+// W008 — Unnecessary `else` after diverging branch
+// ─────────────────────────────────────────────────────────────
+
+#[test]
+fn w008_redundant_else_after_return() {
+    let codes = lint_codes(
+        r#"
+check(x: int): int {
+    if x < 0 {
+        return -1
+    } else {
+        return x * 2
+    }
+}
+"#,
+    );
+    assert!(codes.iter().any(|c| c == "W008"));
+}
+
+#[test]
+fn w008_no_warning_when_then_does_not_diverge() {
+    let codes = lint_codes(
+        r#"
+check(x: int): int {
+    let y = 0
+    if x < 0 {
+        y = -1
+    } else {
+        y = x * 2
+    }
+    return y
+}
+"#,
+    );
+    assert!(!codes.iter().any(|c| c == "W008"));
+}
+
+#[test]
+fn w008_redundant_else_after_throw() {
+    let codes = lint_codes(
+        r#"
+check(x: int): int {
+    if x < 0 {
+        throw "negative"
+    } else {
+        return x
+    }
+}
+"#,
+    );
+    assert!(codes.iter().any(|c| c == "W008"));
+}
+
+#[test]
+fn w008_redundant_else_after_break_in_loop() {
+    let codes = lint_codes(
+        r#"
+scan(items: [int]): int {
+    let total = 0
+    for i, item in items {
+        if item < 0 {
+            break
+        } else {
+            total = total + item
+        }
+    }
+    return total
+}
+"#,
+    );
+    assert!(codes.iter().any(|c| c == "W008"));
+}
+

@@ -193,6 +193,35 @@ treated specially — wrap with `_` if appropriate.
 
 ---
 
+### W008 — Unnecessary `else` after diverging branch
+
+Emitted when an `if`'s then-branch always diverges (ends with `return`,
+`throw`, `fail`, `break`, or `continue`), making the `else` redundant.
+
+```liva
+check(x: int): int {
+    if x < 0 {
+        return -1        // diverges
+    } else {             // W008: unnecessary `else`
+        return x * 2
+    }
+}
+```
+
+Fix: drop the `else` and dedent its body — execution can only reach
+that code when the `if` condition was false.
+
+```liva
+check(x: int): int {
+    if x < 0 {
+        return -1
+    }
+    return x * 2
+}
+```
+
+---
+
 ## JSON Output
 
 For IDE integration, pass `--json`:

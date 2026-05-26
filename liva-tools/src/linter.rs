@@ -2,7 +2,7 @@ use colored::Colorize;
 /// Linter module for Liva
 ///
 /// Runs static analysis on the parsed AST to detect code smells and warnings.
-/// Warnings use W-codes (W001-W007) and are non-blocking — compilation proceeds.
+/// Warnings use W-codes (W001-W008) and are non-blocking — compilation proceeds.
 ///
 /// ## Warning Codes
 ///
@@ -13,6 +13,7 @@ use colored::Colorize;
 /// - **W005**: Variable shadows an outer-scope binding
 /// - **W006**: Empty block (if / else / while / for body)
 /// - **W007**: Function parameter declared but never used
+/// - **W008**: Unnecessary `else` after a diverging branch (`return`/`throw`/`fail`/`break`/`continue`)
 use livac::ast::*;
 use livac::span::SourceMap;
 use std::collections::{HashMap, HashSet};
@@ -129,6 +130,7 @@ impl Linter {
         self.check_shadowed_variables(program);
         self.check_empty_blocks(program);
         self.check_unused_parameters(program);
+        self.check_redundant_else(program);
         self.warnings.clone()
     }
 
@@ -1548,6 +1550,115 @@ impl Linter {
             });
         }
     }
+}
+
+// ───────────────────────────────────────────────────────────
+// W008: Unnecessary `else` after a diverging branch
+// ───────────────────────────────────────────────────────────
+
+impl Linter {
+    fn check_redundant_else(&mut self, program: &Program) {
+        for item in &program.items {
+            match item {
+                TopLevel::Function(f) => {
+                    if let Some(body) = &f.body {
+                        self.redundant_else_walk_block(body);
+                    }
+                }
+                TopLevel::Class(class) => {
+                    for member in &class.members {
+                        if let Member::Method(m) = member {
+                            if let Some(body) = &m.body {
+                                self.redundant_else_walk_block(body);
+                            }
+                        }
+                    }
+                }
+                TopLevel::Test(t) => self.redundant_else_walk_block(&t.body),
+                _ => {}
+            }
+        }
+    }
+
+    fn redundant_else_walk_block(&mut self, block: &BlockStmt) {
+        for stmt in &block.stmts {
+            self.redundant_else_walk_stmt(stmt);
+        }
+    }
+
+    fn redundant_else_walk_stmt(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::If(if_stmt) => {
+                // Recurse first so nested if/else are also checked.
+                Self::walk_if_body(self, &if_stmt.then_branch);
+                if let Some(else_branch) = &if_stmt.else_branch {
+                    Self::walk_if_body(self, else_branch);
+
+                    // The diverging-then check: if the then-branch is a block
+                    // that ends with a diverging statement, the else is
+                    // redundant (the else body can be dedented one level).
+                    if let IfBody::Block(b) = &if_stmt.then_branch {
+                        if block_diverges(b) {
+                            let line = self.find_line_containing("else", 0);
+                            self.warn_redundant_else(line);
+                        }
+                    } else if let IfBody::Stmt(s) = &if_stmt.then_branch {
+                        if stmt_diverges(s) {
+                            let line = self.find_line_containing("else", 0);
+                            self.warn_redundant_else(line);
+                        }
+                    }
+                }
+            }
+            Stmt::While(w) => self.redundant_else_walk_block(&w.body),
+            Stmt::For(f) => self.redundant_else_walk_block(&f.body),
+            Stmt::Block(b) => self.redundant_else_walk_block(b),
+            Stmt::TryCatch(tc) => {
+                self.redundant_else_walk_block(&tc.try_block);
+                self.redundant_else_walk_block(&tc.catch_block);
+            }
+            _ => {}
+        }
+    }
+
+    fn walk_if_body(&mut self, body: &IfBody) {
+        match body {
+            IfBody::Block(b) => self.redundant_else_walk_block(b),
+            IfBody::Stmt(s) => self.redundant_else_walk_stmt(s),
+        }
+    }
+
+    fn warn_redundant_else(&mut self, line: usize) {
+        self.warnings.push(LintWarning {
+            code: "W008".to_string(),
+            title: "Unnecessary else".to_string(),
+            message: "Else branch is unnecessary because the then-branch always diverges"
+                .to_string(),
+            file: self.source_file.clone(),
+            line,
+            column: None,
+            source_line: self.source_line_at(line),
+            help: Some(
+                "Drop the `else` and dedent its body — execution can only reach it when \
+                 the `if` condition was false."
+                    .to_string(),
+            ),
+        });
+    }
+}
+
+/// Returns true if a block's execution always leaves the enclosing function /
+/// loop (i.e. its last statement is `return`, `throw`, `fail`, `break`, or
+/// `continue`). Used by W008 to detect a redundant `else`.
+fn block_diverges(block: &BlockStmt) -> bool {
+    block.stmts.last().map(stmt_diverges).unwrap_or(false)
+}
+
+fn stmt_diverges(stmt: &Stmt) -> bool {
+    matches!(
+        stmt,
+        Stmt::Return(_) | Stmt::Throw(_) | Stmt::Fail(_) | Stmt::Break | Stmt::Continue
+    )
 }
 
 /// Collect all identifier names introduced by a binding pattern.
