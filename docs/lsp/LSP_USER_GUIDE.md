@@ -266,6 +266,44 @@ let result = newName * 2
 
 ---
 
+### 7. **Document Highlight**
+
+Hover over an identifier — all other occurrences in the same file are highlighted automatically.
+
+### 8. **Selection Range**
+
+`Shift+Alt+Right` expands the selection by semantic chunks: word → whole line → entire document.
+
+### 9. **Folding Range**
+
+The editor's gutter shows fold markers for:
+- Brace-delimited blocks (`{ ... }`) spanning multiple lines
+- Consecutive `import "..."` lines (collapse the import block)
+- Comment blocks of 3+ consecutive `//` lines
+
+### 10. **Document Link**
+
+`Ctrl/Cmd+click` on the path of an `import "..."` opens the imported file.
+
+### 11. **Code Actions (Quick Fixes)**
+
+The lightbulb (`Ctrl/Cmd+.`) offers automatic fixes for linter warnings:
+
+| Warning                     | Quick Fix                                  |
+| --------------------------- | ------------------------------------------ |
+| **W001** unused variable    | Prefix the identifier with `_` to silence  |
+| **W002** unused import      | Remove the import line                     |
+| **W003** unreachable code   | Delete the unreachable region              |
+| **W007** unused parameter   | Prefix the identifier with `_` to silence  |
+
+### 12. **Linter Diagnostics**
+
+Beyond compiler errors, the LSP also surfaces all `W001`-`W008` linter
+warnings in real time as `Warning`-severity squiggles with
+`source = "liva-lint"`. The same checks `livac lint` runs on the CLI.
+
+---
+
 ## ⚙️ Configuration
 
 ### VS Code Settings
