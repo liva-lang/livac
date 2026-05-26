@@ -879,29 +879,79 @@ impl LanguageServer for LivaLanguageServer {
             return Ok(None);
         }
 
-        // Compute edits using the same textual word-boundary search the
-        // references handler uses. This is intra-file rename; cross-file
-        // rename will require resolving the symbol's defining scope, which
-        // is a v3.x item.
-        let ranges = doc
+        // Decide scope: a symbol present in the workspace's global index
+        // (functions, classes, top-level decls) is renamed across every
+        // workspace file. Otherwise (local variable, parameter) we limit
+        // the edit to the current document to avoid touching unrelated
+        // bindings in other files.
+        let is_global = self
+            .workspace_index
+            .lookup_global(&word)
+            .map(|v| !v.is_empty())
+            .unwrap_or(false);
+
+        let mut changes: std::collections::HashMap<Url, Vec<TextEdit>> =
+            std::collections::HashMap::new();
+
+        // Current document edits (always).
+        let current_ranges = doc
             .symbols
             .as_ref()
             .map(|s| s.find_references(&word, &doc.text))
             .unwrap_or_default();
-        if ranges.is_empty() {
-            return Ok(None);
+        if !current_ranges.is_empty() {
+            changes.insert(
+                uri.clone(),
+                current_ranges
+                    .into_iter()
+                    .map(|range| TextEdit {
+                        range,
+                        new_text: new_name.clone(),
+                    })
+                    .collect(),
+            );
         }
 
-        let edits: Vec<TextEdit> = ranges
-            .into_iter()
-            .map(|range| TextEdit {
-                range,
-                new_text: new_name.clone(),
-            })
-            .collect();
+        if is_global {
+            // Workspace-wide rename: walk every other indexed file.
+            for file_uri in self.workspace_index.indexed_files() {
+                if &file_uri == uri {
+                    continue;
+                }
 
-        let mut changes = std::collections::HashMap::new();
-        changes.insert(uri.clone(), edits);
+                let ranges = if let Some(open_doc) = self.documents.get(&file_uri) {
+                    open_doc
+                        .symbols
+                        .as_ref()
+                        .map(|s| s.find_references(&word, &open_doc.text))
+                        .unwrap_or_default()
+                } else if let Ok(path) = file_uri.to_file_path() {
+                    match tokio::fs::read_to_string(&path).await {
+                        Ok(content) => find_word_ranges_in_source(&content, &word),
+                        Err(_) => Vec::new(),
+                    }
+                } else {
+                    Vec::new()
+                };
+
+                if !ranges.is_empty() {
+                    changes.insert(
+                        file_uri,
+                        ranges
+                            .into_iter()
+                            .map(|range| TextEdit {
+                                range,
+                                new_text: new_name.clone(),
+                            })
+                            .collect(),
+                    );
+                }
+            }
+        }
+
+        if changes.is_empty() {
+            return Ok(None);
+        }
 
         Ok(Some(WorkspaceEdit {
             changes: Some(changes),
@@ -1210,6 +1260,42 @@ fn expand_word_range(line: &str, pos: tower_lsp::lsp_types::Position) -> Option<
     })
 }
 
+/// Word-boundary search for `word` over `source`, returning LSP `Range`s.
+/// Used by cross-file rename when a file is not currently open in the editor.
+fn find_word_ranges_in_source(source: &str, word: &str) -> Vec<tower_lsp::lsp_types::Range> {
+    let mut ranges = Vec::new();
+    if word.is_empty() {
+        return ranges;
+    }
+    let is_ident = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    for (line_idx, line) in source.lines().enumerate() {
+        let bytes = line.as_bytes();
+        let mut search_from = 0;
+        while let Some(pos) = line[search_from..].find(word) {
+            let actual = search_from + pos;
+            let before_ok = actual == 0
+                || !is_ident(line[..actual].chars().last().unwrap_or(' '));
+            let end_pos = actual + word.len();
+            let after_ok = end_pos >= bytes.len()
+                || !is_ident(line[end_pos..].chars().next().unwrap_or(' '));
+            if before_ok && after_ok {
+                ranges.push(tower_lsp::lsp_types::Range {
+                    start: tower_lsp::lsp_types::Position {
+                        line: line_idx as u32,
+                        character: actual as u32,
+                    },
+                    end: tower_lsp::lsp_types::Position {
+                        line: line_idx as u32,
+                        character: end_pos as u32,
+                    },
+                });
+            }
+            search_from = actual + 1;
+        }
+    }
+    ranges
+}
+
 /// Compute folding ranges for `text` by matching `{`/`}` pairs and collapsing
 /// consecutive `import` lines and `//` line-comment blocks.
 ///
@@ -1375,5 +1461,34 @@ mod folding_tests {
             .filter(|r| r.kind == Some(FoldingRangeKind::Comment))
             .collect();
         assert!(comments.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod rename_helpers_tests {
+    use super::find_word_ranges_in_source;
+
+    #[test]
+    fn finds_only_whole_word_matches() {
+        let src = "let foo = 1\nlet foobar = 2\ncall(foo)\n";
+        let ranges = find_word_ranges_in_source(src, "foo");
+        // `foobar` must NOT match.
+        assert_eq!(ranges.len(), 2);
+        assert_eq!(ranges[0].start.line, 0);
+        assert_eq!(ranges[1].start.line, 2);
+    }
+
+    #[test]
+    fn empty_word_returns_empty() {
+        assert!(find_word_ranges_in_source("foo", "").is_empty());
+    }
+
+    #[test]
+    fn handles_underscore_boundary() {
+        // `_foo` and `foo_` are different identifiers and must not match.
+        let src = "let foo = 1\nlet _foo = 2\nlet foo_bar = 3\n";
+        let ranges = find_word_ranges_in_source(src, "foo");
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges[0].start.line, 0);
     }
 }
