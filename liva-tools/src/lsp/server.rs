@@ -160,6 +160,8 @@ impl LanguageServer for LivaLanguageServer {
                 definition_provider: Some(OneOf::Left(true)),
                 implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
                 references_provider: Some(OneOf::Left(true)),
+                document_highlight_provider: Some(OneOf::Left(true)),
+                selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
@@ -740,6 +742,102 @@ impl LanguageServer for LivaLanguageServer {
         Ok(Some(all_locations))
     }
 
+    async fn document_highlight(
+        &self,
+        params: DocumentHighlightParams,
+    ) -> Result<Option<Vec<DocumentHighlight>>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+
+        let word = match doc.word_at_position(position) {
+            Some(w) => w,
+            None => return Ok(None),
+        };
+
+        // Re-use the textual word-boundary search already used by `references`
+        // to scope highlights to the current document only \u2014 that's the
+        // contract of `textDocument/documentHighlight`.
+        let highlights: Vec<DocumentHighlight> = doc
+            .symbols
+            .as_ref()
+            .map(|s| s.find_references(&word, &doc.text))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|range| DocumentHighlight {
+                range,
+                // We don't currently distinguish reads from writes; emit
+                // TEXT for all occurrences. LSP clients render this as a
+                // single highlight color, matching most editors' defaults.
+                kind: Some(DocumentHighlightKind::TEXT),
+            })
+            .collect();
+
+        if highlights.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(highlights))
+    }
+
+    async fn selection_range(
+        &self,
+        params: SelectionRangeParams,
+    ) -> Result<Option<Vec<SelectionRange>>> {
+        let uri = &params.text_document.uri;
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+
+        // Build a chain of expanding ranges per requested position:
+        //   word \u2192 line \u2192 whole document. This is a lightweight
+        // syntax-agnostic fallback; a proper implementation would walk
+        // the AST and emit token/expression/block/function nesting.
+        let mut out = Vec::with_capacity(params.positions.len());
+        let lines: Vec<&str> = doc.text.lines().collect();
+        let total_lines = lines.len() as u32;
+        let last_line_len = lines.last().map(|l| l.len() as u32).unwrap_or(0);
+
+        for pos in params.positions {
+            let line_text = lines.get(pos.line as usize).copied().unwrap_or("");
+            let word_range = expand_word_range(line_text, pos);
+
+            let line_range = Range {
+                start: Position { line: pos.line, character: 0 },
+                end: Position {
+                    line: pos.line,
+                    character: line_text.len() as u32,
+                },
+            };
+            let doc_range = Range {
+                start: Position { line: 0, character: 0 },
+                end: Position {
+                    line: total_lines.saturating_sub(1),
+                    character: last_line_len,
+                },
+            };
+
+            let doc_sel = SelectionRange {
+                range: doc_range,
+                parent: None,
+            };
+            let line_sel = SelectionRange {
+                range: line_range,
+                parent: Some(Box::new(doc_sel)),
+            };
+            let word_sel = SelectionRange {
+                range: word_range.unwrap_or(line_range),
+                parent: Some(Box::new(line_sel)),
+            };
+            out.push(word_sel);
+        }
+        Ok(Some(out))
+    }
+
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
@@ -942,4 +1040,33 @@ impl LanguageServer for LivaLanguageServer {
 
         Ok(Some(results))
     }
+}
+
+/// Expand `pos` to the surrounding identifier-like word range on `line`.
+/// Returns None when the cursor is not over an identifier character.
+fn expand_word_range(line: &str, pos: tower_lsp::lsp_types::Position) -> Option<tower_lsp::lsp_types::Range> {
+    let col = pos.character as usize;
+    let bytes = line.as_bytes();
+    if col > bytes.len() {
+        return None;
+    }
+    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    // The cursor can sit just past the last char of a word; check both sides.
+    let on_word = (col < bytes.len() && is_ident(bytes[col]))
+        || (col > 0 && is_ident(bytes[col - 1]));
+    if !on_word {
+        return None;
+    }
+    let mut start = col;
+    while start > 0 && is_ident(bytes[start - 1]) {
+        start -= 1;
+    }
+    let mut end = col;
+    while end < bytes.len() && is_ident(bytes[end]) {
+        end += 1;
+    }
+    Some(tower_lsp::lsp_types::Range {
+        start: tower_lsp::lsp_types::Position { line: pos.line, character: start as u32 },
+        end: tower_lsp::lsp_types::Position { line: pos.line, character: end as u32 },
+    })
 }
