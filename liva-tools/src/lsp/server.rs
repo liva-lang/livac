@@ -4,11 +4,12 @@ use tower_lsp::lsp_types::request::{GotoImplementationParams, GotoImplementation
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
-use super::diagnostics::error_to_diagnostic;
+use super::diagnostics::{error_to_diagnostic, warning_to_diagnostic};
 use super::document::DocumentState;
 use super::imports::ImportResolver;
 use super::symbols::SymbolTable;
 use super::workspace::{WorkspaceIndex, WorkspaceManager};
+use crate::linter;
 use livac::{lexer, parser, semantic};
 
 /// Main Language Server for Liva
@@ -80,10 +81,21 @@ impl LivaLanguageServer {
                         self.workspace_index
                             .index_file(uri.clone(), &analyzed_ast, &doc.text);
 
+                        // Run linter and surface its warnings as LSP diagnostics.
+                        let filename = uri
+                            .to_file_path()
+                            .ok()
+                            .and_then(|p| p.file_name().map(|s| s.to_string_lossy().into_owned()))
+                            .unwrap_or_else(|| "<unknown>".to_string());
+                        let lint_diags: Vec<Diagnostic> = linter::lint(&analyzed_ast, &filename, &doc.text)
+                            .iter()
+                            .map(warning_to_diagnostic)
+                            .collect();
+
                         doc.ast = Some(analyzed_ast);
                         doc.symbols = Some(symbols);
                         doc.imports = imports;
-                        doc.diagnostics.clear();
+                        doc.diagnostics = lint_diags;
                     }
                     Err(e) => {
                         // Store semantic error as diagnostic
