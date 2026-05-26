@@ -1,5 +1,6 @@
 use dashmap::DashMap;
 use tower_lsp::jsonrpc::Result;
+use tower_lsp::lsp_types::request::{GotoImplementationParams, GotoImplementationResponse};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
@@ -157,6 +158,7 @@ impl LanguageServer for LivaLanguageServer {
                     ..Default::default()
                 }),
                 definition_provider: Some(OneOf::Left(true)),
+                implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
                 references_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
@@ -556,6 +558,67 @@ impl LanguageServer for LivaLanguageServer {
         }
 
         Ok(None)
+    }
+
+    async fn goto_implementation(
+        &self,
+        params: GotoImplementationParams,
+    ) -> Result<Option<GotoImplementationResponse>> {
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+
+        let word = match doc.word_at_position(position) {
+            Some(w) => w,
+            None => return Ok(None),
+        };
+
+        // Look up all classes that implement an interface named `word` or
+        // declare a method named `word` while implementing some interface.
+        if let Some(impls) = self.workspace_index.lookup_implementations(&word) {
+            if !impls.is_empty() {
+                let locations: Vec<Location> = impls
+                    .into_iter()
+                    .map(|(impl_uri, sym)| Location {
+                        uri: impl_uri,
+                        range: sym.range,
+                    })
+                    .collect();
+
+                self.client
+                    .log_message(
+                        MessageType::INFO,
+                        format!(
+                            "Found {} implementation(s) for `{}`",
+                            locations.len(),
+                            word
+                        ),
+                    )
+                    .await;
+
+                return Ok(Some(GotoImplementationResponse::Array(locations)));
+            }
+        }
+
+        // No implementations recorded \u2014 fall back to definition lookup so
+        // the editor still navigates somewhere reasonable.
+        let fallback = self
+            .goto_definition(GotoDefinitionParams {
+                text_document_position_params: params.text_document_position_params,
+                work_done_progress_params: params.work_done_progress_params,
+                partial_result_params: params.partial_result_params,
+            })
+            .await?;
+
+        Ok(fallback.map(|resp| match resp {
+            GotoDefinitionResponse::Scalar(loc) => GotoImplementationResponse::Scalar(loc),
+            GotoDefinitionResponse::Array(locs) => GotoImplementationResponse::Array(locs),
+            GotoDefinitionResponse::Link(links) => GotoImplementationResponse::Link(links),
+        }))
     }
 
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {

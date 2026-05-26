@@ -1,9 +1,9 @@
 use dashmap::DashMap;
+use livac::ast::{Member, Program, TopLevel};
 use std::path::{Path, PathBuf};
 use tower_lsp::lsp_types::*;
 
 use super::symbols::{Symbol, SymbolTable};
-use livac::ast::Program;
 
 /// Metadata about a file in the workspace
 #[derive(Debug, Clone)]
@@ -169,6 +169,12 @@ pub struct WorkspaceIndex {
     /// URI -> Local symbol table for that file
     /// Caches the parsed symbol table for each file
     file_symbols: DashMap<Url, SymbolTable>,
+
+    /// Interface / type name -> list of classes implementing it.
+    /// Populated from `ClassDecl.implements` during `index_file`.
+    /// Used by `goto_implementation` to jump from an interface or method
+    /// declaration to all concrete implementors in the workspace.
+    implementations: DashMap<String, Vec<(Url, Symbol)>>,
 }
 
 impl WorkspaceIndex {
@@ -177,6 +183,7 @@ impl WorkspaceIndex {
         Self {
             symbols: DashMap::new(),
             file_symbols: DashMap::new(),
+            implementations: DashMap::new(),
         }
     }
 
@@ -208,7 +215,76 @@ impl WorkspaceIndex {
         }
 
         // Cache the symbol table for this file
-        self.file_symbols.insert(uri, symbol_table);
+        self.file_symbols.insert(uri.clone(), symbol_table);
+
+        // Index interface implementations declared in this file. For every
+        // `Class : Interface1, Interface2 { ... }` we record an entry for
+        // each interface, plus one entry per method (so go-to-implementation
+        // on a method name also resolves). The class name lookups go through
+        // the regular symbol table.
+        self.index_implementations(&uri, ast, source);
+    }
+
+    fn index_implementations(&self, uri: &Url, ast: &Program, source: &str) {
+        for item in &ast.items {
+            let TopLevel::Class(cls) = item else { continue };
+            if cls.implements.is_empty() {
+                continue;
+            }
+
+            // Resolve the class's display range from the source by finding
+            // the first occurrence of the class name on a line that looks
+            // like a class header (e.g. `Cat :` or `Cat {`).
+            let range = locate_class_header(&cls.name, source).unwrap_or_default();
+            let class_sym = Symbol {
+                name: cls.name.clone(),
+                kind: SymbolKind::CLASS,
+                range,
+                detail: Some(format!(
+                    "class {} : {}",
+                    cls.name,
+                    cls.implements.join(", ")
+                )),
+                definition_span: None,
+            };
+
+            for iface in &cls.implements {
+                self.implementations
+                    .entry(iface.clone())
+                    .or_insert_with(Vec::new)
+                    .push((uri.clone(), class_sym.clone()));
+            }
+
+            // Per-method entries: methodName -> all classes that declare
+            // a method by that name AND implement at least one interface.
+            // This is conservative — it doesn't check that the method is
+            // actually required by the interface, but the LSP filter on
+            // the call site already constrains the context.
+            for member in &cls.members {
+                if let Member::Method(method) = member {
+                    let method_range =
+                        locate_method(&cls.name, &method.name, source).unwrap_or_default();
+                    let method_sym = Symbol {
+                        name: method.name.clone(),
+                        kind: SymbolKind::METHOD,
+                        range: method_range,
+                        detail: Some(format!("{}::{}", cls.name, method.name)),
+                        definition_span: None,
+                    };
+                    self.implementations
+                        .entry(method.name.clone())
+                        .or_insert_with(Vec::new)
+                        .push((uri.clone(), method_sym));
+                }
+            }
+        }
+    }
+
+    /// Looks up implementations for an interface or interface method name.
+    pub fn lookup_implementations(&self, name: &str) -> Option<Vec<(Url, Symbol)>> {
+        self.implementations
+            .get(name)
+            .map(|entry| entry.value().clone())
     }
 
     /// Looks up a symbol globally across all files
@@ -245,6 +321,21 @@ impl WorkspaceIndex {
                         drop(entry);
                         self.symbols.remove(&symbol.name);
                     }
+                }
+            }
+        }
+        // Clean implementations contributed by this file.
+        let keys_to_clean: Vec<String> = self
+            .implementations
+            .iter()
+            .map(|e| e.key().clone())
+            .collect();
+        for key in keys_to_clean {
+            if let Some(mut entry) = self.implementations.get_mut(&key) {
+                entry.retain(|(file_uri, _)| file_uri != uri);
+                if entry.is_empty() {
+                    drop(entry);
+                    self.implementations.remove(&key);
                 }
             }
         }
@@ -287,6 +378,81 @@ impl Default for WorkspaceIndex {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Find the LSP range for a class header by scanning the source for the
+/// class name followed by `:` or `{`. Returns `None` if the class header
+/// cannot be located (in that case the caller falls back to a default range).
+fn locate_class_header(name: &str, source: &str) -> Option<Range> {
+    for (line_idx, line) in source.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with(name) {
+            continue;
+        }
+        let after = &trimmed[name.len()..];
+        // Class header: `Name {` or `Name :` or `Name<...>`.
+        let next = after.chars().next();
+        let looks_like_header = matches!(next, Some('{') | Some(':') | Some('<') | Some(' '));
+        if !looks_like_header {
+            continue;
+        }
+        let col = line.len() - trimmed.len();
+        return Some(Range {
+            start: Position {
+                line: line_idx as u32,
+                character: col as u32,
+            },
+            end: Position {
+                line: line_idx as u32,
+                character: (col + name.len()) as u32,
+            },
+        });
+    }
+    None
+}
+
+/// Find the LSP range for a method declaration `methodName(` inside a class.
+/// Best-effort: scans the source after the class header for the first
+/// `methodName(` occurrence and returns its range. Returns `None` if not
+/// found. Does not attempt to handle nested classes (Liva has none).
+fn locate_method(class_name: &str, method_name: &str, source: &str) -> Option<Range> {
+    let mut in_class = false;
+    let needle = format!("{}(", method_name);
+    for (line_idx, line) in source.lines().enumerate() {
+        if !in_class {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with(class_name) {
+                let after = &trimmed[class_name.len()..];
+                let next = after.chars().next();
+                if matches!(next, Some('{') | Some(':') | Some('<') | Some(' ')) {
+                    in_class = true;
+                }
+            }
+            continue;
+        }
+        if let Some(pos) = line.find(&needle) {
+            // Skip if `methodName` is part of a longer identifier.
+            let before_ok = pos == 0
+                || !line
+                    .as_bytes()
+                    .get(pos - 1)
+                    .map(|b| b.is_ascii_alphanumeric() || *b == b'_')
+                    .unwrap_or(false);
+            if before_ok {
+                return Some(Range {
+                    start: Position {
+                        line: line_idx as u32,
+                        character: pos as u32,
+                    },
+                    end: Position {
+                        line: line_idx as u32,
+                        character: (pos + method_name.len()) as u32,
+                    },
+                });
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]

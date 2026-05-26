@@ -108,7 +108,39 @@ add(1, 2)  // F12 jumps to math.liva
 
 ---
 
-### 3. **Find All References**
+### 3. **Go to Implementation**
+
+**Trigger:**
+- Right-click → "Go to Implementation"
+- Ctrl+F12 (Cmd+F12 on Mac)
+
+**Works For:**
+- ✅ Interface names → lists all classes that `implement` the interface
+- ✅ Interface method names → lists overrides across implementing classes
+
+**Example:**
+```liva
+type Drawable {
+    draw(): void
+}
+
+Cat : Drawable {
+    draw() => print("meow")
+}
+
+Dog : Drawable {
+    draw() => print("woof")
+}
+
+// Ctrl+F12 on `Drawable`  → jumps between Cat and Dog
+// Ctrl+F12 on `draw()`    → lists Cat::draw and Dog::draw
+```
+
+If no implementations are recorded, falls back to "Go to Definition" behavior.
+
+---
+
+### 4. **Find All References**
 
 **Trigger:**
 - Right-click → "Find All References"
