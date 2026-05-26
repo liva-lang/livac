@@ -162,6 +162,7 @@ impl LanguageServer for LivaLanguageServer {
                 references_provider: Some(OneOf::Left(true)),
                 document_highlight_provider: Some(OneOf::Left(true)),
                 selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
+                rename_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
@@ -838,10 +839,75 @@ impl LanguageServer for LivaLanguageServer {
         Ok(Some(out))
     }
 
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let new_name = params.new_name;
+
+        // Validate the new name is a sensible identifier.
+        if new_name.is_empty()
+            || new_name
+                .chars()
+                .next()
+                .map(|c| !(c.is_ascii_alphabetic() || c == '_'))
+                .unwrap_or(true)
+            || !new_name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            return Err(tower_lsp::jsonrpc::Error::invalid_params(format!(
+                "`{}` is not a valid Liva identifier",
+                new_name
+            )));
+        }
+
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+
+        let word = match doc.word_at_position(position) {
+            Some(w) => w,
+            None => return Ok(None),
+        };
+        if word == new_name {
+            return Ok(None);
+        }
+
+        // Compute edits using the same textual word-boundary search the
+        // references handler uses. This is intra-file rename; cross-file
+        // rename will require resolving the symbol's defining scope, which
+        // is a v3.x item.
+        let ranges = doc
+            .symbols
+            .as_ref()
+            .map(|s| s.find_references(&word, &doc.text))
+            .unwrap_or_default();
+        if ranges.is_empty() {
+            return Ok(None);
+        }
+
+        let edits: Vec<TextEdit> = ranges
+            .into_iter()
+            .map(|range| TextEdit {
+                range,
+                new_text: new_name.clone(),
+            })
+            .collect();
+
+        let mut changes = std::collections::HashMap::new();
+        changes.insert(uri.clone(), edits);
+
+        Ok(Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }))
+    }
+
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-
         let doc = match self.documents.get(uri) {
             Some(doc) => doc,
             None => return Ok(None),
