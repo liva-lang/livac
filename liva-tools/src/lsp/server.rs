@@ -163,6 +163,10 @@ impl LanguageServer for LivaLanguageServer {
                 document_highlight_provider: Some(OneOf::Left(true)),
                 selection_range_provider: Some(SelectionRangeProviderCapability::Simple(true)),
                 rename_provider: Some(OneOf::Left(true)),
+                document_link_provider: Some(DocumentLinkOptions {
+                    resolve_provider: Some(false),
+                    work_done_progress_options: Default::default(),
+                }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
@@ -903,6 +907,57 @@ impl LanguageServer for LivaLanguageServer {
             document_changes: None,
             change_annotations: None,
         }))
+    }
+
+    async fn document_link(
+        &self,
+        params: DocumentLinkParams,
+    ) -> Result<Option<Vec<DocumentLink>>> {
+        let uri = &params.text_document.uri;
+        let doc = match self.documents.get(uri) {
+            Some(doc) => doc,
+            None => return Ok(None),
+        };
+
+        let resolver = self.import_resolver.read().await;
+        let mut links: Vec<DocumentLink> = Vec::new();
+
+        // Scan each line for `import ... "PATH"` or `import "PATH"`.
+        // The Liva parser already validated these as imports, so we don't
+        // need to be strict \u2014 we just need the quoted path range.
+        for (line_idx, line) in doc.text.lines().enumerate() {
+            let trimmed = line.trim_start();
+            if !trimmed.starts_with("import ") && !trimmed.starts_with("import\"") {
+                continue;
+            }
+            // Find first quoted string on the line.
+            let Some(open) = line.find('"') else { continue };
+            let Some(close_rel) = line[open + 1..].find('"') else { continue };
+            let close = open + 1 + close_rel;
+            let source = &line[open + 1..close];
+
+            let target = resolver.resolve_import(source, uri);
+            links.push(DocumentLink {
+                range: Range {
+                    start: Position {
+                        line: line_idx as u32,
+                        character: (open + 1) as u32,
+                    },
+                    end: Position {
+                        line: line_idx as u32,
+                        character: close as u32,
+                    },
+                },
+                target,
+                tooltip: Some(format!("Open {}", source)),
+                data: None,
+            });
+        }
+
+        if links.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(links))
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
