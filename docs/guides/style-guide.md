@@ -346,6 +346,22 @@ return DB.query(db, "SELECT * FROM users") or fail "Query failed"
 
 Single action → `defer stmt`. Multiple → `defer { ... }`. LIFO order.
 
+> ⚠️ **Known limitation (B112):** `defer` captures variables by mutable
+> reference for the lifetime of the scope. If you `defer` an operation that
+> mutates a binding **and then read or further mutate that same binding** in
+> the rest of the scope, the borrow checker rejects it (`E0499` / `E0502`).
+> Workaround: defer cleanup of *external* resources (DB connections, files,
+> locks) — not in-scope `let` bindings you still need to touch. Test scope
+> mutations using a fresh binding instead:
+>
+> ```liva
+> defer items.push(99)   // ❌ items.push(4) below fails to borrow-check
+> // …
+> defer DB.close(db)     // ✅ db is consumed at scope exit only
+> ```
+>
+> Resolution is tracked for a future `defer` redesign.
+
 ---
 
 ## 16. Rust Interop
