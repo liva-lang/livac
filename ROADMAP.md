@@ -4,12 +4,16 @@
 > direction.  
 > **Companion docs:** `BACKLOG.md` (open tasks),
 > `CHANGELOG.md` (per-version released changes).  
-> **Current Version:** v2.4.0 (release 2026-05-27)  
-> **Status:** v2.3 RELEASED — Tooling completion: REPL (rustyline), doc/bench/coverage,
-> Jest-style hooks, lazy iterator chain fusion, bench gate, LIVA_STRICT, AI skill
-> audit. Phase F closed (Liva fully self-hosted, bootstrap FROZEN). Gen-2 ≡ gen-3
-> idempotent; all gates green.  
-> **Last Updated:** 2026-05-21
+> **Current Version:** v2.4.0 (released 2026-05-27)  
+> **Status:** v2.4.0 RELEASED — null-coalescing operator `??` end-to-end
+> (lexer/parser right-assoc/codegen sin `.unwrap()` espurio sobre getters de
+> colecciones), fixture `app29_coalesce.liva` en e2e selfhost. Benchmarks
+> Liva/Rust regenerados: worst 1.17×, best 0.44× — dentro del target ≤1.20×.
+> Builds on v2.3 (tooling completion: REPL, doc/bench/coverage, Jest-style
+> hooks, lazy iterator chain fusion, bench gate, LIVA_STRICT) y v2.1 Phase F
+> (Liva fully self-hosted, bootstrap FROZEN). Gen-2 ≡ gen-3 idempotent; 9/9 CI
+> gates verdes.  
+> **Last Updated:** 2026-05-27
 
 ---
 

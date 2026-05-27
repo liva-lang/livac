@@ -5,7 +5,7 @@
 > `CHANGELOG.md` (released versions, Keep-a-Changelog format).  
 > **Plan de diseño:** `docs/plans/PLAN_PRODUCTION_READINESS.md`  
 > **Prioridad:** Orden por versión = orden de implementación  
-> **Última actualización:** 2026-05-12
+> **Última actualización:** 2026-05-27 (post-v2.4.0 release: `??` shipped)
 ---
 
 ## v1.4 — Stdlib P0: String, Array, Math ✅

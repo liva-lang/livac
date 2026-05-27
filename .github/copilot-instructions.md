@@ -1,13 +1,13 @@
 # 🔧 Liva Compiler Context
 
 > **Proyecto:** livac - El compilador de Liva  
-> **Versión:** **v2.1.0** (tag pushed 2026-05-20)  
-> **Lenguaje:** Rust (bootstrap, FROZEN) + Liva (self-hosting)  
-> **Tests:** 528+ cargo + 12/12 cli_subcmds + gen-2 ≡ gen-3 idempotent  
+> **Versión:** **v2.4.0** (tag pushed 2026-05-27)  
+> **Lenguaje:** Rust (bootstrap, FROZEN) + Liva (self-hosting canónico)  
+> **Tests:** 538+ cargo + 9/9 CI gates (rebuild_selfhost, selfhost_apps, multifile_apps, cli_subcmds, regression, complex_apps, e2e_selfhost, bench, cargo test) + gen-2 ≡ gen-3 idempotent.  
 > **Self-hosting:** ✅ FULLY SELF-HOSTED. Gen-2 ships as canonical compiler; `liva-tools` (fmt/lint/lsp) dispatched from Liva.  
-> **Rama activa:** `feat/self-hosting-v2` (not yet merged to `main`; tag `v2.1.0` lives on this branch)  
-> **Estado:** **v2.2.0 RELEASED** 🎉 (2026-05-20). Added stdlib YAML/TOML modules (reuse JSON `Value` infra), fixed `.length` codegen on JSON/YAML/TOML Values (now emits `JsonValueExt.length()` instead of nonexistent `.len()`), aligned Makefile gen-2 staging path with `rebuild_selfhost.sh`. Built atop v2.1 Phase F (bootstrap+liva-tools+compiler workspace split, FROZEN Rust bootstrap, self-hosted gen-2 canonical). Workspace: `bootstrap/` (livac-bootstrap, FROZEN), `liva-tools/` (formatter+linter+LSP), `compiler/` (self-host canónico).
-> **Última actualización:** 2026-05-20
+> **Rama activa:** `main` (v2.4.0 tag empujado).  
+> **Estado:** **v2.4.0 RELEASED** 🎉 (2026-05-27). Operador `??` (null-coalescing) end-to-end: lexer/parser (right-assoc), codegen sin `.unwrap()` espurio sobre getters de colecciones, fixture `app29_coalesce.liva` en e2e selfhost. Benchmarks Liva/Rust 5-run median: worst 1.17×, best 0.44× — dentro del target ≤1.20×. Docs (`QUICK_REFERENCE.md`, `docs/language-reference/operators.md`, `skills/liva-lang/SKILL.md`) sincronizados. Workspace: `bootstrap/` (livac-bootstrap, FROZEN), `liva-tools/` (formatter+linter+LSP, depende de `livac-bootstrap` como lib Rust), `compiler/` (self-host canónico).
+> **Última actualización:** 2026-05-27
 
 ---
 
