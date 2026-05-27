@@ -430,6 +430,7 @@ enum BinOp {
     Ne,
     And,
     Or,
+    Coalesce,
     Range,
     RangeInclusive
 }
@@ -448,6 +449,7 @@ binOpToString(op: BinOp): string { return switch op {
     BinOp.Ne             => "!=",
     BinOp.And            => "&&",
     BinOp.Or             => "||",
+    BinOp.Coalesce       => "??",
     BinOp.Range          => "..",
     BinOp.RangeInclusive => "..=",
     _                    => "?"

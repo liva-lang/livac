@@ -32,6 +32,7 @@ binOpToRust(op: BinOp): string {
         BinOp.Ne => { result = "!=" },
         BinOp.And => { result = "&&" },
         BinOp.Or => { result = "||" },
+        BinOp.Coalesce => { result = "??" },
         BinOp.Range => { result = ".." },
         BinOp.RangeInclusive => { result = "..=" }
     }

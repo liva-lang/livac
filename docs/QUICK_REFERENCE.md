@@ -450,6 +450,26 @@ let name = user?.name or "Guest"   // string — always has a value
 let age = user?.age or 0           // number — fallback to 0
 ```
 
+### Null-Coalescing Operator (`??`)
+
+`??` is an expression-level form of `or`: it returns the lhs if it
+yields a value, otherwise lazily evaluates the rhs. Useful inside
+larger expressions where `or` (a let-binding form) doesn't fit.
+Right-associative, lower precedence than `||`.
+
+```liva
+let m: Map<string, string> = Map { "hello": "world" }
+
+let a = m.get("hello") ?? "default"      // "world"
+let b = m.get("missing") ?? "fallback"   // "fallback"
+
+// Chained: first non-missing wins, terminal value is required.
+let c = m.get("x") ?? m.get("y") ?? "end"
+
+// rhs is lazy — not evaluated when lhs is present.
+let d = m.get("hello") ?? expensive_default()
+```
+
 ---
 
 ## CSV: Custom Separator

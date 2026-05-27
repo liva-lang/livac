@@ -311,10 +311,12 @@ Lexer {
             return
         }
 
-        // ?, ?.
+        // ?, ?., ??
         if ch == "?" {
             if this._match(".") {
                 this._addToken(TokenKind.QuestionDot, startPos, startLine, startCol)
+            } else if this._match("?") {
+                this._addToken(TokenKind.QuestionQuestion, startPos, startLine, startCol)
             } else {
                 this._addToken(TokenKind.Question, startPos, startLine, startCol)
             }

@@ -114,6 +114,7 @@ enum TokenKind {
     DotDot,
     Question,
     QuestionDot,
+    QuestionQuestion,
     Arrow,
 
     // Literals
@@ -305,6 +306,7 @@ tokenKindName(kind: TokenKind): string { return switch kind {
     TokenKind.Arrow       => "=>",
     TokenKind.Question    => "?",
     TokenKind.QuestionDot => "?.",
+    TokenKind.QuestionQuestion => "??",
     TokenKind.Underscore  => "_",
     TokenKind.EOF         => "<EOF>",
     _                     => "<token>"

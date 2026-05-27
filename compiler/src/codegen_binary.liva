@@ -20,6 +20,26 @@ extend RustEmitter {
 
     _emitBinary(op: BinOp, left: Expr, right: Expr) {
         let opStr = this._binOpToRust(op)
+        // `??` (null-coalescing): emit `(<lhs>).unwrap_or_else(|| <rhs>)`.
+        // The lhs is expected to be Option<T>; the rhs is evaluated lazily so
+        // it can have side effects or be expensive without paying the cost
+        // when lhs is Some(_).
+        if opStr == "??" {
+            // Emit the lhs, then strip a trailing `.unwrap()` if present
+            // (collection getters like `Map.get`/`Array.first` automatically
+            // append `.unwrap()` for ergonomics — strip it so we can apply
+            // the lazy fallback to the underlying Option<T>).
+            this._write("(")
+            this._emitExpr(left)
+            let emittedLine = $"{this._currentLine}"
+            if emittedLine.endsWith(".unwrap()") {
+                this._currentLine = emittedLine.substring(0, emittedLine.length - 9)
+            }
+            this._write(").unwrap_or_else(|| ")
+            this._emitExpr(right)
+            this._write(")")
+            return
+        }
         // `||` is always logical OR now — `or <value>` is handled at parser level
         // Wrap in parens to preserve precedence when used as operand of &&
         if opStr == "||" {

@@ -1582,7 +1582,7 @@ Parser {
     // ── Precedence chain ──────────────────────────────────────────
 
     _parseAssignment(): Expr {
-        let expr = this._parseOr()
+        let expr = this._parseCoalesce()
 
         if this._match(TokenKind.DotDotEq) {
             let right = this._parseAssignment()
@@ -1597,6 +1597,19 @@ Parser {
             this._expect(TokenKind.Colon)
             let elseExpr = this._parseAssignment()
             return Expr.Ternary(expr, thenExpr, elseExpr)
+        }
+        return expr
+    }
+
+    // `??` (null-coalescing) — RIGHT-associative, lower precedence than `||`.
+    // `a || b ?? c` parses as `(a || b) ?? c`.
+    // `a ?? b ?? c` parses as `a ?? (b ?? c)` (matches JS/TS/C#/Kotlin) so
+    // intermediate values stay Option<T> for the outer fallback.
+    _parseCoalesce(): Expr {
+        let expr = this._parseOr()
+        if this._match(TokenKind.QuestionQuestion) {
+            let right = this._parseCoalesce()
+            expr = Expr.Binary(BinOp.Coalesce, expr, right)
         }
         return expr
     }

@@ -1,0 +1,38 @@
+// E2E test: null-coalescing operator `??`.
+// `<lhs> ?? <rhs>` lowers to `(<lhs>).unwrap_or_else(|| <rhs>)`,
+// so lhs must be Option<T> and rhs must produce T (lazily evaluated).
+
+Counter {
+    n: number
+    constructor() { this.n = 0 }
+    bump(): string { this.n = this.n + 1; return "bumped" }
+}
+
+main() {
+    let m: Map<string, string> = Map { "hello": "world" }
+
+    // present key
+    let a = m.get("hello") ?? "default"
+    print($"a={a}")
+
+    // missing key falls through
+    let b = m.get("missing") ?? "fallback"
+    print($"b={b}")
+
+    // chained: first present wins
+    let c = m.get("nope") ?? m.get("hello") ?? "z"
+    print($"c={c}")
+
+    // chained: all miss, terminal literal wins
+    let d = m.get("x") ?? m.get("y") ?? "end"
+    print($"d={d}")
+
+    // rhs laziness: not triggered when lhs is Some
+    let k = Counter()
+    let e = m.get("hello") ?? k.bump()
+    print($"e={e} bumps={k.n}")
+
+    // rhs laziness: IS triggered when lhs is None
+    let f = m.get("absent") ?? k.bump()
+    print($"f={f} bumps={k.n}")
+}

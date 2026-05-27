@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] — Post-2.3 LSP & linter improvements
 
+### Language
+- **`??` null-coalescing operator** — expression-level form of `or`:
+  `<lhs> ?? <rhs>` lowers to `(<lhs>).unwrap_or_else(|| <rhs>)` with the
+  trailing `.unwrap()` on collection getters (`Map.get`, `Array.first`…)
+  automatically stripped. Right-associative, lower precedence than `||`,
+  so `a ?? b ?? c` parses as `a ?? (b ?? c)` (matches JS/TS/C#/Kotlin).
+  rhs is evaluated lazily — no cost when lhs is `Some(_)`.
+
 ### LSP — new providers
 - **Go to Implementation** (`textDocument/implementation`) — interface → concrete classes + method overrides.
 - **Document Highlight** (`textDocument/documentHighlight`).
