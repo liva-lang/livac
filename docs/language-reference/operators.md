@@ -15,8 +15,9 @@
 | 7 | `==` `!=` | Equality | L→R |
 | 8 | `and` `&&` | Logical AND | L→R |
 | 9 | `or` `\|\|` | Logical OR / Optional fallback | L→R |
-| 10 | `? :` | Ternary | R→L |
-| 11 | `=` `+=` `-=` `*=` `/=` `%=` | Assignment | R→L |
+| 10 | `??` | Null-coalescing fallback | R→L |
+| 11 | `? :` | Ternary | R→L |
+| 12 | `=` `+=` `-=` `*=` `/=` `%=` | Assignment | R→L |
 
 > **⚠️ Modulo `%` is remainder, not mathematical modulo.** It uses Rust's `rem` semantics, so `-5 % 3 == -2` (NOT `1`). For mathematical modulo on possibly-negative numbers, use `((a % b) + b) % b`.
 >
@@ -121,3 +122,30 @@ let port = getPort() or 8080         // number — fallback if null
 ```
 
 > **Note:** `or` is context-sensitive — with optional values it's `unwrap_or`, with booleans it's logical OR.
+
+### Null-Coalescing (`??`)
+
+Expression-level form of `or`. `<lhs> ?? <rhs>` returns the value on
+the lhs if it's present, otherwise lazily evaluates the rhs. Useful
+inside larger expressions where `or` (a let-binding form) doesn't fit.
+
+**Right-associative**, lower precedence than `||` — matches JS/TS/C#/Kotlin.
+`a ?? b ?? c` parses as `a ?? (b ?? c)` so intermediate fallbacks stay
+Option-typed except for the terminal value.
+
+```liva
+let m: Map<string, string> = Map { "hello": "world" }
+
+let a = m.get("hello") ?? "default"      // "world"
+let b = m.get("missing") ?? "fallback"   // "fallback"
+
+// Chained: first non-missing wins, terminal value is required.
+let c = m.get("x") ?? m.get("y") ?? "end"
+
+// rhs is lazy — not evaluated when lhs is present.
+let d = m.get("hello") ?? expensive_default()
+```
+
+Lowers to `(<lhs>).unwrap_or_else(|| <rhs>)`; the trailing `.unwrap()`
+that collection getters (`Map.get`, `Array.first`, `Array.last`, `Array.find`)
+auto-append is stripped beforehand so `??` composes naturally.

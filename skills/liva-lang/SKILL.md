@@ -259,7 +259,13 @@ let user = find_user("admin")    // string?
 let name = user!                  // unwrap, panics if null
 let name = user?.name             // optional chaining → string?
 let safe = user?.name or "Guest"  // chain + fallback → string
+let safe2 = user?.name ?? "Guest" // null-coalescing — same fallback, in expr context
 ```
+
+> **`or` vs `??`** — `or` is a let-binding form (`let x = expr or default`).
+> `??` is an expression-level form and works anywhere an expression does
+> (function args, return, inside templates). `??` is right-associative,
+> lower precedence than `||`, and the rhs is evaluated lazily.
 
 ## Defer
 

@@ -9,7 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
-## [Unreleased] — Post-2.3 LSP & linter improvements
+## [2.4.0] — 2026-05-27 — `??` operator, LSP polish, linter rules
+
+Minor release. Adds one language-level feature (`??`), expands LSP
+coverage (7 new providers + diagnostics integration), and adds 4 new
+linter rules. Fully backward-compatible.
+
+**Validation:** all 9 self-host gates green (rebuild_selfhost,
+selfhost_apps, multifile_apps, cli_subcmds, regression, complex_apps,
+e2e_selfhost, bench, cargo test); gen-2 ≡ gen-3 binary idempotent.
+
+**Performance (vs hand-written Rust, 5-run median):**
+
+| Bench | Liva/Rust |
+|---|---:|
+| strings: line processing | 1.17× |
+| strings: CSV building | 0.97× |
+| strings: word counting | 0.96× |
+| collections: array fill+sum | 1.00× |
+| collections: filter+map | 1.05× |
+| collections: map build+lookup | 1.11× |
+| collections: sort | 1.02× |
+| classes: shape compute | 1.07× |
+| classes: vec2 ops | 1.00× |
+| classes: particle sim | 0.44× |
+
+Worst case 1.17× slower, best case 2.3× faster. All within the
+≤ 1.20× target.
 
 ### Language
 - **`??` null-coalescing operator** — expression-level form of `or`:
@@ -18,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   automatically stripped. Right-associative, lower precedence than `||`,
   so `a ?? b ?? c` parses as `a ?? (b ?? c)` (matches JS/TS/C#/Kotlin).
   rhs is evaluated lazily — no cost when lhs is `Some(_)`.
+  Test: `compiler/tests/selfhost_apps/app29_coalesce.liva`.
 
 ### LSP — new providers
 - **Go to Implementation** (`textDocument/implementation`) — interface → concrete classes + method overrides.
