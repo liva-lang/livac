@@ -1,6 +1,12 @@
-// E2E test: null-coalescing operator `??`.
+// E2E test: null-coalescing operator `??` (gen-2 only — bootstrap can't parse `??`).
 // `<lhs> ?? <rhs>` lowers to `(<lhs>).unwrap_or_else(|| <rhs>)`,
 // so lhs must be Option<T> and rhs must produce T (lazily evaluated).
+// EXPECT: a=world
+// EXPECT: b=fallback
+// EXPECT: c=world
+// EXPECT: d=end
+// EXPECT: e=world bumps=0
+// EXPECT: f=bumped bumps=1
 
 Counter {
     n: number
