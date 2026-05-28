@@ -67,6 +67,15 @@ liva-tools = { path = "../liva-tools" }
 # resurfaced in F.5 (CI rewire) if/when bootstrap packaging is needed.
 
 [package.metadata.deb]
+# Override the crate name (livac-bootstrap) so the published package is `livac`.
+# This keeps the apt/dpkg name stable across releases and makes `dpkg -i`
+# upgrade an existing `livac` install in place. `provides/conflicts/replaces`
+# also cleanly take over from older `livac-bootstrap` packages shipped in
+# v2.4.0 (before this fix).
+name = "livac"
+provides = "livac-bootstrap"
+conflicts = "livac-bootstrap"
+replaces = "livac-bootstrap"
 maintainer = "Fran Nadal"
 copyright = "2024-2026 Fran Nadal"
 extended-description = """\
@@ -74,6 +83,7 @@ Liva is a modern programming language that compiles to Rust. \
 It combines the simplicity of TypeScript, the expressiveness of Python, \
 and the safety and performance of Rust."""
 depends = "$auto"
+recommends = "rustc, cargo"
 section = "devel"
 priority = "optional"
 assets = [
@@ -91,6 +101,11 @@ conf-files = []
 maintainer-scripts = "../scripts/deb/"
 
 [package.metadata.generate-rpm]
+# Match the .deb: ship the rpm as `livac` (not livac-bootstrap) and let it
+# obsolete/provide the old name so `rpm -U` upgrades in place.
+name = "livac"
+provides = ["livac-bootstrap"]
+obsoletes = ["livac-bootstrap"]
 assets = [
     { source = "../target/x86_64-unknown-linux-gnu/release/livac", dest = "/usr/bin/livac", mode = "0755" },
     { source = "../skills/liva-lang/SKILL.md", dest = "/usr/share/livac/skills/liva-lang/SKILL.md", mode = "0644" },
