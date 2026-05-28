@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [2.4.2] — 2026-05-28 — Bootstrap `??` support (critical fix)
+
+Patch release. Fixes a critical user-facing parser bug in the shipped
+Rust bootstrap binary (the artifact installed by the `.deb` / `.rpm`
+packages and the GitHub release archives).
+
+### Fixed
+- **E2000 on `??` (null-coalescing operator)** — the bootstrap lexer
+  did not recognise `??` as a single token, so any `a ?? b` was lexed
+  as two `?` tokens. The parser then interpreted the first `?` as the
+  start of a ternary `cond ? then : else` and failed with
+  `Expected Colon` at the next statement.
+
+  Reproducer that now compiles cleanly:
+  ```liva
+  main() {
+      let m: Map<string, string> = Map { "k": "v" }
+      let x = m.get("k") ?? "default"
+      print(x)
+  }
+  ```
+
+### Changed (bootstrap only)
+- `lexer.rs`: new `QuestionQuestion` token (`??`).
+- `ast.rs`: new `BinOp::Coalesce` variant.
+- `parser.rs`: new `parse_coalesce` precedence step (right-associative,
+  between `parse_or` and the ternary in `parse_assignment`).
+- `codegen.rs`: emits `(<lhs>).unwrap_or_else(|| <rhs>)`, stripping a
+  trailing `.unwrap()` from the lhs so collection getters (`Map.get`,
+  `Array.first`) expose their underlying `Option<T>` for the lazy
+  fallback. Mirrors the gen-2 (`compiler/src/codegen_binary.liva`)
+  behaviour byte-for-byte on the supported shapes.
+
+### Notes
+- This is an exception to `bootstrap/FROZEN.md` policy #1 (critical
+  user-facing miscompile). The change is additive and reviewed against
+  the self-host implementation.
+- The full 538-test bootstrap regression suite plus the `app29_coalesce`
+  selfhost fixture continue to pass.
+
 ## [2.4.1] — 2026-05-28 — Packaging fixes (`.deb` / `.rpm` upgrade in place)
 
 Patch release. **No language or compiler changes.** Fixes how the Linux

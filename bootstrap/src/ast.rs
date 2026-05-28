@@ -935,6 +935,7 @@ pub enum BinOp {
     Ne,
     And,
     Or,
+    Coalesce,
     Range,
     RangeInclusive,
 }
@@ -955,6 +956,7 @@ impl fmt::Display for BinOp {
             BinOp::Ne => write!(f, "!="),
             BinOp::And => write!(f, "&&"),
             BinOp::Or => write!(f, "||"),
+            BinOp::Coalesce => write!(f, "??"),
             BinOp::Range => write!(f, ".."),
             BinOp::RangeInclusive => write!(f, "..="),
         }

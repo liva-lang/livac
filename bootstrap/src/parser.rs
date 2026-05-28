@@ -2109,7 +2109,7 @@ impl Parser {
     }
 
     fn parse_assignment(&mut self) -> Result<Expr> {
-        let expr = self.parse_or()?;
+        let expr = self.parse_coalesce()?;
 
         if self.match_token(&Token::DotDotEq) {
             let right = self.parse_assignment()?;
@@ -2141,6 +2141,21 @@ impl Parser {
             });
         }
 
+        Ok(expr)
+    }
+
+    // `??` (null-coalescing) — RIGHT-associative, lower precedence than `||`.
+    // `a || b ?? c` parses as `(a || b) ?? c`.
+    fn parse_coalesce(&mut self) -> Result<Expr> {
+        let expr = self.parse_or()?;
+        if self.match_token(&Token::QuestionQuestion) {
+            let right = self.parse_coalesce()?;
+            return Ok(Expr::Binary {
+                op: BinOp::Coalesce,
+                left: Box::new(expr),
+                right: Box::new(right),
+            });
+        }
         Ok(expr)
     }
 

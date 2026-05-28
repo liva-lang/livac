@@ -16254,6 +16254,31 @@ impl CodeGenerator {
     }
 
     fn generate_binary_operation(&mut self, op: &BinOp, left: &Expr, right: &Expr) -> Result<()> {
+        // `??` (null-coalescing): emit `(<lhs>).unwrap_or_else(|| <rhs>)`.
+        // The lhs is expected to be Option<T>; rhs is evaluated lazily.
+        // Strip a trailing `.unwrap()` from the lhs emission so collection
+        // getters (Map.get / Array.first) — which auto-append `.unwrap()` —
+        // expose the underlying Option<T> for the lazy fallback.
+        if matches!(op, BinOp::Coalesce) {
+            self.output.push('(');
+            self.suppress_map_get_unwrap = true;
+            self.generate_expr(left)?;
+            self.suppress_map_get_unwrap = false;
+            if self.output.ends_with(".unwrap()") {
+                let new_len = self.output.len() - ".unwrap()".len();
+                self.output.truncate(new_len);
+            }
+            self.output.push_str(").unwrap_or_else(|| ");
+            if matches!(right, Expr::Literal(Literal::String(_))) {
+                self.generate_expr(right)?;
+                self.output.push_str(".to_string()");
+            } else {
+                self.generate_expr(right)?;
+            }
+            self.output.push(')');
+            return Ok(());
+        }
+
         // B140: detect `s.toInt() or default` / `s.toFloat() or default` in
         // expression position (not let-binding). The standard `toInt` emission
         // produces `.parse::<i32>().unwrap_or(0)`; with an explicit default we
@@ -16570,6 +16595,7 @@ impl CodeGenerator {
             BinOp::Eq | BinOp::Ne => 70,
             BinOp::And => 60,
             BinOp::Or => 50,
+            BinOp::Coalesce => 45,
             BinOp::Range | BinOp::RangeInclusive => 40,
         }
     }

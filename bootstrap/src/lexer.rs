@@ -216,6 +216,8 @@ pub enum Token {
     DotDot,
     #[token("?")]
     Question,
+    #[token("??")]
+    QuestionQuestion,
     #[token("?.")]
     QuestionDot,
     #[token("=>")]
