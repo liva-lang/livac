@@ -78,6 +78,29 @@ jobs:
       - name: Build release binary
         run: cargo build --release --workspace --target ${{ matrix.target }}
 
+      # --- Self-host rebuild (gen-2) ---
+      # The Rust bootstrap is a frozen seed (v2.0.0-rc1). The canonical
+      # compiler lives in `compiler/src/*.liva` (gen-2). Ship gen-2 so
+      # the binary users install matches the source that passes CI.
+      #
+      # Linux only for now: uses the pre-built `bootstrap/seed/livac-linux-amd64`
+      # gen-2 seed binary committed to the repo, then rebuilds gen-1 → gen-2
+      # → gen-3 and verifies idempotence. macOS / Windows continue to ship
+      # the (patched) Rust bootstrap until per-platform seeds land.
+      - name: Rebuild self-host (gen-2)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          chmod +x bootstrap/seed/livac-linux-amd64
+          ./compiler/tests/rebuild_selfhost.sh
+          ls -la target/livac-gen2-release
+
+      - name: Substitute gen-2 binary for bootstrap (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          cp target/livac-gen2-release target/${{ matrix.target }}/release/livac
+          echo "Shipped binary version:"
+          target/${{ matrix.target }}/release/livac --version
+
       # --- Binary artifact (.tar.gz / .zip) ---
       # Archives include binary + skills + docs so all installers have everything
 

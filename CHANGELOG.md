@@ -9,6 +9,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [2.5.0] — 2026-05-28 — Self-host binary is now what we ship (Linux)
+
+**This release closes the self-hosting loop on Linux.** Until v2.4.x, the
+binary inside `livac_amd64.deb` / `livac.x86_64.rpm` / `livac-linux-x64.tar.gz`
+was actually the **Rust bootstrap** (`bootstrap/src/*.rs`, frozen at
+v2.0.0-rc1) — not the canonical compiler written in Liva
+(`compiler/src/*.liva`). Every new gen-2 feature passed CI but the
+installed binary didn't know about it. The `??` regression in v2.4.1 was
+the first time that divergence bit a user.
+
+### Changed
+- **Release pipeline (Linux):** `release.yml` now runs
+  `compiler/tests/rebuild_selfhost.sh` after `cargo build --release` and
+  substitutes `target/livac-gen2-release` for the Rust bootstrap before
+  packaging. The `.deb` / `.rpm` / `.tar.gz` Linux artifacts now contain
+  the **gen-2 self-host binary** — the same one that passes all 9 CI
+  gates locally, including the `app29_coalesce` selfhost fixture and the
+  gen-2 ≡ gen-3 idempotence check.
+
+### Known limitation
+- **macOS & Windows:** still ship the Rust bootstrap (now patched for
+  `??` in v2.4.2). Per-platform seed binaries are pending; tracked in
+  `BACKLOG.md` under "Release pipeline parity". The bootstrap is
+  fully functional for everything except brand-new gen-2-only features
+  added after v2.0.0-rc1 — which we'll keep porting in-band until macOS
+  and Windows seeds land.
+
+### Verification
+- Local `compiler/tests/rebuild_selfhost.sh` succeeds end-to-end
+  (gen-2 ≡ gen-3 source idempotent, binary idempotent).
+- `livac-gen2-release` parses, compiles and runs the `??` reproducer
+  cleanly:
+  ```liva
+  let m: Map<string, string> = Map { "hello": "world" }
+  let a = m.get("hello") ?? "default"
+  ```
+
 ## [2.4.2] — 2026-05-28 — Bootstrap `??` support (critical fix)
 
 Patch release. Fixes a critical user-facing parser bug in the shipped
