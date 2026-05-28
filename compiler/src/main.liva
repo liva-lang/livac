@@ -68,7 +68,7 @@ import { ModuleResolver, LivaModule } from "./module"
 
 use rust "rustyline" version "14"
 
-const LIVA_COMPILER_VERSION = "2.4.0"
+const LIVA_COMPILER_VERSION = "2.4.1"
 
 // =====================================================================
 //  CLI Argument Parsing

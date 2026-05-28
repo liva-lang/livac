@@ -28,6 +28,26 @@ case "$1" in
         if [ -x /usr/share/livac/scripts/install-skills.sh ]; then
             /usr/share/livac/scripts/install-skills.sh || true
         fi
+
+        # --- Migration: clean up legacy ~/.liva/bin shadow ---
+        # The pre-v2.4.1 install.sh dropped livac in ~/.liva/bin and prepended
+        # it to PATH in ~/.bashrc / ~/.zshrc / ~/.profile, so it shadowed the
+        # packaged /usr/bin/livac forever. Detect and back it up so the new
+        # version on /usr/bin/livac takes effect immediately.
+        for HOMEDIR in /home/* /root; do
+            [ -d "$HOMEDIR" ] || continue
+            LEGACY="$HOMEDIR/.liva/bin/livac"
+            if [ -f "$LEGACY" ]; then
+                BACKUP="$LEGACY.pre-2.4.1.bak"
+                mv -f "$LEGACY" "$BACKUP" 2>/dev/null || true
+                USER_NAME=$(basename "$HOMEDIR")
+                echo "livac: migrated legacy install for ${USER_NAME}:"
+                echo "livac:   moved ${LEGACY} -> ${BACKUP}"
+                echo "livac:   /usr/bin/livac (this package) is now the active livac."
+                echo "livac:   You may also want to remove the '~/.liva/bin' PATH"
+                echo "livac:   line from ~/.bashrc / ~/.zshrc / ~/.profile."
+            fi
+        done
         ;;
 esac
 

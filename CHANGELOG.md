@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [2.4.1] — 2026-05-28 — Packaging fixes (`.deb` / `.rpm` upgrade in place)
+
+Patch release. **No language or compiler changes.** Fixes how the Linux
+packages install and upgrade so that `dpkg -i livac_amd64.deb` (and
+`rpm -U livac.x86_64.rpm`) cleanly replaces any previous install in a
+single command, without manual cleanup.
+
+### Fixed
+
+- **`.deb` published as `livac` again** (was `livac-bootstrap` in
+  v2.4.0 because `cargo-deb` defaulted to the crate name). The binary
+  on disk has always been `/usr/bin/livac`; the package name now
+  matches it.
+- **`Conflicts: livac-bootstrap` / `Replaces: livac-bootstrap` /
+  `Provides: livac-bootstrap`** so anyone who installed the v2.4.0
+  `livac-bootstrap` .deb gets a clean upgrade instead of `trying to
+  overwrite ... which is also in package livac-bootstrap`.
+- **Rust toolchain moved from postinst rustup-curl-pipe to
+  `Recommends: rustc, cargo`** (deb) / matching `.rpm` deps. Apt
+  users get `rustc`/`cargo` automatically; `dpkg -i` users see a
+  printed hint. The postinst no longer downloads ~200 MB from
+  `sh.rustup.rs`, no longer fails on slow/offline networks, no
+  longer leaves the package in state `iF`.
+- **Postinst migrates legacy `~/.liva/bin/livac`** (dropped by the
+  pre-2.4.1 `scripts/install.sh` and shadowing `/usr/bin/livac` via
+  a `PATH` line in `~/.bashrc`). On install we move it aside to
+  `~/.liva/bin/livac.pre-2.4.1.bak` and print which `PATH` line to
+  remove. New installs always activate immediately.
+- Postinst is now strictly non-failing (`install-skills.sh` errors
+  are swallowed with `|| true`).
+
+### Mirrors on RPM
+
+- `.rpm` published as `livac` with `Provides: livac-bootstrap` and
+  `Obsoletes: livac-bootstrap`, same semantics as the .deb.
+
 ## [2.4.0] — 2026-05-27 — `??` operator, LSP polish, linter rules
 
 Minor release. Adds one language-level feature (`??`), expands LSP
