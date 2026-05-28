@@ -11,8 +11,46 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Produces the gen-2 self-host Rust crate once on Linux (using the
+  # committed Linux seed binary). The crate is platform-independent
+  # standard Cargo, so each `build` matrix entry then cargo-builds it
+  # natively for its target. This ships gen-2 on every platform without
+  # needing per-OS seed binaries.
+  selfhost-source:
+    name: Build gen-2 Rust crate (Linux seed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust bootstrap (needed for fallback path)
+        run: cargo build --release
+
+      - name: Rebuild self-host (gen-2)
+        run: |
+          chmod +x bootstrap/seed/livac-linux-amd64
+          ./compiler/tests/rebuild_selfhost.sh
+
+      - name: Stage gen-2 Rust crate (strip target/)
+        run: |
+          mkdir -p selfhost-crate
+          cp -r "$HOME/tmp/gen2_build/Cargo.toml" \
+                "$HOME/tmp/gen2_build/Cargo.lock" \
+                "$HOME/tmp/gen2_build/src" \
+                selfhost-crate/
+          ls -la selfhost-crate/
+
+      - name: Upload gen-2 crate
+        uses: actions/upload-artifact@v4
+        with:
+          name: selfhost-rust-crate
+          path: selfhost-crate
+
   build:
     name: Build (${{ matrix.target }})
+    needs: selfhost-source
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -83,23 +121,38 @@ jobs:
       # compiler lives in `compiler/src/*.liva` (gen-2). Ship gen-2 so
       # the binary users install matches the source that passes CI.
       #
-      # Linux only for now: uses the pre-built `bootstrap/seed/livac-linux-amd64`
-      # gen-2 seed binary committed to the repo, then rebuilds gen-1 → gen-2
-      # → gen-3 and verifies idempotence. macOS / Windows continue to ship
-      # the (patched) Rust bootstrap until per-platform seeds land.
-      - name: Rebuild self-host (gen-2)
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        run: |
-          chmod +x bootstrap/seed/livac-linux-amd64
-          ./compiler/tests/rebuild_selfhost.sh
-          ls -la target/livac-gen2-release
+      # The `selfhost-source` job produced a platform-independent Rust
+      # crate from the gen-2 source. Each matrix entry just `cargo build`s
+      # it natively for its target, then substitutes the resulting binary
+      # over the Rust bootstrap at the path packaging expects.
+      - name: Download gen-2 Rust crate
+        uses: actions/download-artifact@v4
+        with:
+          name: selfhost-rust-crate
+          path: selfhost-crate
 
-      - name: Substitute gen-2 binary for bootstrap (Linux)
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+      - name: Build gen-2 binary (cargo)
+        shell: bash
         run: |
-          cp target/livac-gen2-release target/${{ matrix.target }}/release/livac
+          cargo build --release \
+            --manifest-path selfhost-crate/Cargo.toml \
+            --target ${{ matrix.target }}
+          ls -la "selfhost-crate/target/${{ matrix.target }}/release/"
+
+      - name: Substitute gen-2 binary for bootstrap
+        shell: bash
+        run: |
+          # The gen-2 crate's package is named `main` (livac defaults the
+          # crate name from `main.liva`), so cargo emits `main` / `main.exe`.
+          if [[ "${{ matrix.bin }}" == *.exe ]]; then
+            src="selfhost-crate/target/${{ matrix.target }}/release/main.exe"
+          else
+            src="selfhost-crate/target/${{ matrix.target }}/release/main"
+          fi
+          dst="target/${{ matrix.target }}/release/${{ matrix.bin }}"
+          cp "$src" "$dst"
           echo "Shipped binary version:"
-          target/${{ matrix.target }}/release/livac --version
+          "./$dst" --version
 
       # --- Binary artifact (.tar.gz / .zip) ---
       # Archives include binary + skills + docs so all installers have everything

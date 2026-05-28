@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [2.6.0] — 2026-05-28 — Self-host binary on every platform
+
+v2.5.0 shipped gen-2 on Linux only; macOS and Windows still installed the
+frozen Rust bootstrap. v2.6.0 extends the self-host substitution to
+**every supported target** (Linux x64, macOS x64, macOS arm64, Windows x64).
+
+### How it works
+The release pipeline now has a dedicated `selfhost-source` job that runs
+on Linux, uses the committed seed (`bootstrap/seed/livac-linux-amd64`) to
+rebuild gen-1 → gen-2 → gen-3, and uploads the gen-2 Rust crate as a
+GitHub Actions artifact. Each platform in the `build` matrix downloads
+that crate and runs `cargo build --release --target <triple>` natively,
+then substitutes the resulting binary over the Rust bootstrap before
+packaging. No per-OS seed binaries are needed — the gen-2 Rust source is
+platform-independent standard Cargo.
+
+### Changed
+- **Release pipeline:** every target ships the gen-2 self-host binary.
+  Linux `.deb`/`.rpm`/`.tar.gz`, macOS x64/arm64 `.tar.gz`, and Windows
+  `.zip` now all contain the same canonical compiler.
+- **Workflow:** new `selfhost-source` job; build matrix gains
+  `download-artifact` + `cargo build --manifest-path` + substitute steps.
+
+### Compatibility
+- No language changes. Pure release-engineering release.
+- All five `??` examples (`app29_coalesce.liva`) now work end-to-end on
+  every platform's official installer (previously only Linux in v2.5.0).
+
+---
+
 ## [2.5.0] — 2026-05-28 — Self-host binary is now what we ship (Linux)
 
 **This release closes the self-hosting loop on Linux.** Until v2.4.x, the

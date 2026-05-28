@@ -5,27 +5,26 @@
 > `CHANGELOG.md` (released versions, Keep-a-Changelog format).  
 > **Plan de diseño:** `docs/plans/PLAN_PRODUCTION_READINESS.md`  
 > **Prioridad:** Orden por versión = orden de implementación  
-> **Última actualización:** 2026-05-28 (post-v2.5.0: gen-2 shipped on Linux)
+> **Última actualización:** 2026-05-28 (post-v2.6.0: gen-2 shipped on all platforms)
 ---
 
-## Release pipeline parity — macOS & Windows ship gen-2
+## Release pipeline parity — macOS & Windows ship gen-2 ✅
 
-> v2.5.0 cierra el ciclo de self-hosting en Linux (el `.deb` / `.rpm` /
-> `livac-linux-x64.tar.gz` ya contienen el binario gen-2 producido por
-> `rebuild_selfhost.sh`). macOS y Windows siguen empaquetando el
-> bootstrap Rust parcheado. Pendiente:
+> v2.6.0 cierra el ciclo en TODAS las plataformas. El `selfhost-source` job
+> (Ubuntu) reconstruye gen-2 a partir del seed Linux y sube el crate Rust
+> resultante como artefacto. Cada plataforma del matrix lo descarga y
+> ejecuta `cargo build --release --target <triple>` nativamente, luego
+> substituye el binario sobre el bootstrap Rust antes de empaquetar.
+> Resultado: `.deb`/`.rpm`/`.tar.gz` Linux + `.tar.gz` macOS x64/arm64 +
+> `.zip` Windows shippean el mismo compilador canónico gen-2.
 
-- [ ] Comprometer seed gen-2 para `x86_64-apple-darwin` en `bootstrap/seed/`
-- [ ] Comprometer seed gen-2 para `aarch64-apple-darwin` en `bootstrap/seed/`
-- [ ] Comprometer seed gen-2 para `x86_64-pc-windows-msvc` en `bootstrap/seed/`
-- [ ] Adaptar `rebuild_selfhost.sh` (o equivalente PowerShell) para Windows:
-      el script asume `find -executable` y rutas POSIX; portar a bash de
-      git-for-windows o reescribir.
-- [ ] Habilitar la rama `Rebuild self-host (gen-2)` en `release.yml` para
-      los tres targets restantes.
-- [ ] Actualizar `bootstrap/FROZEN.md` cuando los cuatro targets shippeen
-      gen-2: la regla "feature nueva en gen-2 ⇒ portar también al bootstrap"
-      deja de ser obligatoria.
+- [x] Habilitar gen-2 substitution para los cuatro targets (`release.yml`)
+- [x] Pipeline platform-independent vía artefacto Rust crate
+      (no se necesitan seeds per-OS committed)
+- [x] Documentar en `CHANGELOG.md` v2.6.0
+- [ ] Actualizar `bootstrap/FROZEN.md` cuando se confirme CI verde en los
+      cuatro targets: la regla "feature nueva en gen-2 ⇒ portar también
+      al bootstrap" deja de ser obligatoria.
 
 ---
 
