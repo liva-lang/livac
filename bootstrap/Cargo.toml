@@ -103,9 +103,11 @@ maintainer-scripts = "../scripts/deb/"
 [package.metadata.generate-rpm]
 # Match the .deb: ship the rpm as `livac` (not livac-bootstrap) and let it
 # obsolete/provide the old name so `rpm -U` upgrades in place.
+# Note: cargo-generate-rpm uses a {name = "version-spec"} map for
+# provides/obsoletes (not a plain array — that's the .deb syntax).
 name = "livac"
-provides = ["livac-bootstrap"]
-obsoletes = ["livac-bootstrap"]
+provides = { livac-bootstrap = "*" }
+obsoletes = { livac-bootstrap = "*" }
 assets = [
     { source = "../target/x86_64-unknown-linux-gnu/release/livac", dest = "/usr/bin/livac", mode = "0755" },
     { source = "../skills/liva-lang/SKILL.md", dest = "/usr/share/livac/skills/liva-lang/SKILL.md", mode = "0644" },
