@@ -313,13 +313,13 @@ extend RustEmitter {
             if method == "exec" {
                 this._write("{ let __cmd = &")
                 this._emitExpr(args[0])
-                this._write("; match std::process::Command::new(\"sh\").arg(\"-c\").arg(__cmd).output() { Ok(output) => { let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string(); let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string(); let combined = if !stdout.is_empty() && !stderr.is_empty() { format!(\"{}{}\", stdout, stderr) } else if !stdout.is_empty() { stdout } else { stderr }; (Some(combined), String::new()) }, Err(e) => (None, format!(\"Process.exec error: {}\", e)) } }")
+                this._write("; let (__sh, __flag) = if cfg!(windows) { (\"cmd\", \"/C\") } else { (\"sh\", \"-c\") }; match std::process::Command::new(__sh).arg(__flag).arg(__cmd).output() { Ok(output) => { let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string(); let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string(); let combined = if !stdout.is_empty() && !stderr.is_empty() { format!(\"{}{}\", stdout, stderr) } else if !stdout.is_empty() { stdout } else { stderr }; (Some(combined), String::new()) }, Err(e) => (None, format!(\"Process.exec error: {}\", e)) } }")
                 return
             }
             if method == "spawn" {
-                this._write("match std::process::Command::new(\"sh\").arg(\"-c\").arg(&")
+                this._write("{ let __cmd = &")
                 this._emitExpr(args[0])
-                this._write(").spawn() { Ok(child) => (Some(child.id() as i64), String::new()), Err(e) => (None, format!(\"Process.spawn error: {}\", e)) }")
+                this._write("; let (__sh, __flag) = if cfg!(windows) { (\"cmd\", \"/C\") } else { (\"sh\", \"-c\") }; match std::process::Command::new(__sh).arg(__flag).arg(__cmd).spawn() { Ok(child) => (Some(child.id() as i64), String::new()), Err(e) => (None, format!(\"Process.spawn error: {}\", e)) } }")
                 return
             }
             if method == "pid" {
@@ -359,6 +359,21 @@ extend RustEmitter {
                 this._write("{ use std::io::{Write as _, BufRead as _}; print!(\"{}\", ")
                 this._emitExpr(args[0])
                 this._write("); std::io::stdout().flush().ok(); let mut __ln = String::new(); std::io::stdin().lock().read_line(&mut __ln).ok(); let __ln = __ln.trim_end_matches('\\n').trim_end_matches('\\r').to_string(); __ln }")
+                return
+            }
+            if method == "exe" {
+                // Sys.exe(): string — absolute path of the current executable.
+                this._write("std::env::current_exe().ok().and_then(|p| p.to_str().map(|s| s.to_string())).unwrap_or_default()")
+                return
+            }
+            if method == "os" {
+                // Sys.os(): string — "linux" | "macos" | "windows" | other Rust target_os values.
+                this._write("std::env::consts::OS.to_string()")
+                return
+            }
+            if method == "arch" {
+                // Sys.arch(): string — "x86_64" | "aarch64" | other Rust target_arch values.
+                this._write("std::env::consts::ARCH.to_string()")
                 return
             }
         }

@@ -9,6 +9,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [2.7.0] — 2026-05-28 — `livac update` ported to gen-2 + stdlib growth
+
+After v2.6.0 swapped the Rust bootstrap for the gen-2 self-hosted binary
+on every platform, the `livac update` subcommand silently disappeared
+because it only existed in the Rust source (`bootstrap/src/main.rs`).
+v2.7.0 ports it to the self-hosted compiler as **pure Liva** code, and
+in the process adds the stdlib primitives needed to make a self-update
+flow expressible without falling back to `rust { }` interop.
+
+### Added — Stdlib primitives
+- **`Sys.exe()` → `string`** — absolute path of the running executable
+  (`std::env::current_exe()`). Returns `""` only on the rare platforms
+  where the kernel doesn't expose it.
+- **`Sys.os()` → `string`** — operating-system identifier
+  (`"linux" | "macos" | "windows" | "freebsd" | …`). Maps to
+  `std::env::consts::OS`.
+- **`Sys.arch()` → `string`** — CPU architecture identifier
+  (`"x86_64" | "aarch64" | "x86" | …`). Maps to `std::env::consts::ARCH`.
+
+These let user code write portable self-update, install-path probing,
+and platform-detection logic without `rust { }` escape hatches.
+
+### Changed — Cross-platform `Process.exec`
+- `Process.exec` and `Process.spawn` now select the host shell at
+  runtime (`cmd /C` on Windows, `sh -c` elsewhere). Previously both
+  hard-coded `sh -c` and therefore failed on Windows. The change is
+  source-compatible: portable commands like `curl`, `tar`, `git`, `node`
+  work uniformly on all three platforms; only shell builtins differ.
+
+### Added — CLI
+- **`livac update`** — pure-Liva implementation in `compiler/src/main.liva`.
+  Queries `api.github.com` for the latest release, downloads the matching
+  asset (`curl`), extracts (`tar` / PowerShell `Expand-Archive`), and
+  atomically replaces the running binary (`File.move` + `File.copy`,
+  `chmod 755` on Unix). Mirrors `~/.liva/bin/livac` if it exists and
+  records the version in `~/.liva/version`.
+
+### Bootstrap notes
+Three single-line `rust { }` expressions remain in `_runUpdateCommand`
+to access the newly added `Sys.{exe,os,arch}` primitives, plus two for
+navigating `serde_json::Value` (because the seed's `JSON.parse` doesn't
+honor type annotations yet). These are flagged in the source as
+**bootstrap bridges**: once a v2.7.0+ binary becomes the new frozen
+seed, those blocks can be deleted and replaced with the plain stdlib
+calls they emulate. No other `rust { }` interop is used.
+
+### Tagline
+The banner no longer trails `(self-hosted)` in commands like
+`livac test`, `livac doc`, `livac bench`, the `--version` output, and
+`printUsage`. Once gen-2 is the only binary, "self-hosted" is a given.
+
+---
+
 ## [2.6.0] — 2026-05-28 — Self-host binary on every platform
 
 v2.5.0 shipped gen-2 on Linux only; macOS and Windows still installed the

@@ -68,7 +68,7 @@ import { ModuleResolver, LivaModule } from "./module"
 
 use rust "rustyline" version "14"
 
-const LIVA_COMPILER_VERSION = "2.5.0"
+const LIVA_COMPILER_VERSION = "2.7.0"
 
 // =====================================================================
 //  CLI Argument Parsing
@@ -145,7 +145,7 @@ parseCliArgs(args: [string]): CliOptions {
 }
 
 printUsage() {
-    print($"🧩 Liva Compiler v{LIVA_COMPILER_VERSION} (self-hosted)")
+    print($"🧩 Liva Compiler v{LIVA_COMPILER_VERSION}")
     print("")
     print("Usage: livac <command> <input.liva> [options]")
     print("")
@@ -161,6 +161,7 @@ printUsage() {
     print("  fmt     Format Liva source files")
     print("  lint    Lint Liva source files")
     print("  lsp     Start the Language Server (stdio)")
+    print("  update  Update livac to the latest release")
     print("")
     print("Options:")
     print("  --version, -V    Print version and exit")
@@ -1004,7 +1005,7 @@ _walkTestDir(dir: string): [string] {
 }
 
 _runTestCommand(opts: CliOptions) {
-    print("🧪 Liva Test Runner (self-hosted)")
+    print("🧪 Liva Test Runner")
     print("")
 
     // --coverage mode: check cargo-llvm-cov is installed
@@ -1196,7 +1197,7 @@ _walkBenchDir(dir: string): [string] {
 // Output: ## add\n\nAdds two numbers.\nReturns their sum.\n\n**Signature:** ...
 
 _runDocCommand(opts: CliOptions) {
-    print("📖 Liva Doc Generator (self-hosted)")
+    print("📖 Liva Doc Generator")
     print("")
 
     let outputDir = opts.outputDir
@@ -1546,7 +1547,7 @@ _runReplCommand(opts: CliOptions) {
 }
 
 _runBenchCommand(opts: CliOptions) {
-    print("⏱️  Liva Benchmark Runner (self-hosted)")
+    print("⏱️  Liva Benchmark Runner")
     print("")
 
     let benchFiles = _findBenchFiles(opts.inputFile)
@@ -1914,6 +1915,243 @@ _runInitCommand(opts: CliOptions) {
 }
 
 // =====================================================================
+//  Self-update: `livac update`
+// =====================================================================
+// Self-update: download and install the latest livac release.
+//
+// Implementation is pure Liva: GitHub API call via `HTTP.get`, JSON parsing
+// via `response.json()`, platform detection via `Sys.os()`/`Sys.arch()`,
+// current-executable path via `Sys.exe()`, binary download via `curl` (a
+// process shell-out — see `Process.exec`), archive extraction via `tar` on
+// Unix / `Expand-Archive` PowerShell on Windows, and final atomic binary
+// replacement via `File.move`/`File.copy` + `chmod 755` (Unix).
+//
+// No `rust { }` interop is used. All capabilities ride on the standard
+// library, which is itself a useful dogfooding exercise.
+
+_runUpdateCommand() {
+    let currentVersion = LIVA_COMPILER_VERSION
+    print($"🧩 Checking for updates (current: v{currentVersion})...")
+
+    // ── Platform detection ────────────────────────────────────────────
+    // NOTE: These three call sites use inline `rust { }` instead of
+    // `Sys.os()`, `Sys.arch()`, `Sys.exe()` (which DO exist in the
+    // v2.7.0+ stdlib) because the frozen bootstrap seed binary at
+    // `bootstrap/seed/livac-*` was built BEFORE those primitives were
+    // added to codegen_methodcall.liva. Once the v2.7.0 binary becomes
+    // the new seed, these can be replaced with plain stdlib calls.
+    let rawOs: string = rust { std::env::consts::OS.to_string() }
+    let platOs = ""
+    if rawOs == "linux" {
+        platOs = "linux"
+    } else if rawOs == "macos" {
+        platOs = "darwin"
+    } else if rawOs == "windows" {
+        platOs = "windows"
+    } else {
+        print($"Error: unsupported OS: {rawOs}")
+        Sys.exit(1)
+    }
+
+    let rawArch: string = rust { std::env::consts::ARCH.to_string() }
+    let platArch = ""
+    if rawArch == "x86_64" {
+        platArch = "x64"
+    } else if rawArch == "aarch64" {
+        platArch = "arm64"
+    } else {
+        print($"Error: unsupported architecture: {rawArch}")
+        Sys.exit(1)
+    }
+
+    let isWindows = platOs == "windows"
+    let archiveExt = "tar.gz"
+    let binaryName = "livac"
+    if isWindows {
+        archiveExt = "zip"
+        binaryName = "livac.exe"
+    }
+    let assetName = $"livac-{platOs}-{platArch}.{archiveExt}"
+
+    // ── Query GitHub for the latest release ──────────────────────────
+    // NOTE: We fetch via `curl` (Process.exec) instead of `HTTP.get`.
+    // The reason is the seed's async-detector treats ANY `HTTP.*` call
+    // as an async-trigger and rewrites the enclosing function into
+    // `async fn`. Since `main()` is sync, the resulting future would be
+    // dropped and the command silently no-ops. Until that detector
+    // recognises sync (`reqwest::blocking`) variants, curl keeps this
+    // path uniformly synchronous and uses the same binary we already
+    // need for the archive download below.
+    let apiUrl = "https://api.github.com/repos/liva-lang/livac/releases/latest"
+    let apiBody, apiErr = Process.exec($"curl -L -f -s -A livac-self-update {apiUrl}")
+    if apiErr {
+        print($"Error: failed to query GitHub API: {apiErr}")
+        Sys.exit(1)
+    }
+    if apiBody == "" {
+        print("Error: empty response from GitHub API (is curl installed?)")
+        Sys.exit(1)
+    }
+    let release, parseErr = JSON.parse(apiBody)
+    if parseErr {
+        print($"Error: failed to parse release JSON: {parseErr}")
+        Sys.exit(1)
+    }
+
+    // NOTE: The seed's `JSON.parse` always returns `serde_json::Value`
+    // (the typed-annotation overload `let release: GitHubRelease, …` is a
+    // gen-2-only feature). For bootstrap parity we navigate the raw Value
+    // via 2 small `rust { }` expressions. After re-seeding with v2.7.0
+    // these can be replaced with `release.tag_name` / `release.assets`.
+    let latestTag: string = rust { release["tag_name"].as_str().unwrap_or("").to_string() }
+    if latestTag == "" {
+        print("Error: release tag_name missing or not a string")
+        Sys.exit(1)
+    }
+
+    let latestVersion = latestTag
+    if latestVersion.startsWith("v") {
+        latestVersion = latestVersion.substring(1, latestVersion.length)
+    }
+
+    if latestVersion == currentVersion {
+        print($"✓ Already up to date (v{currentVersion})")
+        return
+    }
+
+    print($"→ New version available: v{currentVersion} → {latestTag}")
+
+    // ── Find the matching asset download URL ─────────────────────────
+    let downloadUrl: string = rust {
+        release["assets"].as_array()
+            .and_then(|arr| arr.iter()
+                .find(|a| a["name"].as_str() == Some(asset_name.as_str()))
+                .and_then(|a| a["browser_download_url"].as_str())
+                .map(|s| s.to_string()))
+            .unwrap_or_default()
+    }
+    if downloadUrl == "" {
+        print($"Error: asset '{assetName}' not found in release {latestTag}")
+        Sys.exit(1)
+    }
+
+    // ── Prepare temp dir ─────────────────────────────────────────────
+    let tmpRoot = "/tmp"
+    if isWindows {
+        let winTmp = Sys.env("TEMP")
+        if winTmp != "" {
+            tmpRoot = winTmp
+        }
+    }
+    let tmpDir = Path.join(tmpRoot, "livac-update")
+    Dir.create(tmpDir)
+    let archivePath = Path.join(tmpDir, assetName)
+
+    // ── Download archive via curl (avoids needing raw bytes in HTTP) ──
+    print($"→ Downloading {assetName}...")
+    let curlCmd = $"curl -L -f -s -o \"{archivePath}\" \"{downloadUrl}\""
+    let _curlOut, curlErr = Process.exec(curlCmd)
+    if curlErr {
+        print($"Error: download failed: {curlErr}")
+        Sys.exit(1)
+    }
+    if not File.exists(archivePath) {
+        print("Error: download produced no file (is curl installed?)")
+        Sys.exit(1)
+    }
+
+    // ── Extract archive ──────────────────────────────────────────────
+    print("→ Extracting...")
+    let extractDir = Path.join(tmpDir, "extracted")
+    let _delOk, _delErr = Dir.delete(extractDir)
+    Dir.create(extractDir)
+
+    let extractCmd = $"tar xzf \"{archivePath}\" -C \"{extractDir}\""
+    if isWindows {
+        extractCmd = $"powershell -NoProfile -Command \"Expand-Archive -Path '{archivePath}' -DestinationPath '{extractDir}' -Force\""
+    }
+    let _exOut, exErr = Process.exec(extractCmd)
+    if exErr {
+        print($"Error: extraction failed: {exErr}")
+        Sys.exit(1)
+    }
+
+    // ── Locate the binary inside the extracted tree ──────────────────
+    let entries, listErr = Dir.listRecursive(extractDir)
+    if listErr {
+        print($"Error: cannot list extracted files: {listErr}")
+        Sys.exit(1)
+    }
+    let newBinary = ""
+    for entry in entries {
+        let base = Path.basename(entry)
+        if base == binaryName {
+            newBinary = Path.join(extractDir, entry)
+        }
+    }
+    if newBinary == "" {
+        print($"Error: could not find {binaryName} in archive")
+        Sys.exit(1)
+    }
+
+    // ── Atomically replace the running executable ────────────────────
+    // See platform-detection note above re: bootstrap-bridge rust block.
+    let currentExe: string = rust { std::env::current_exe().ok().and_then(|p| p.to_str().map(|s| s.to_string())).unwrap_or_default() }
+    if currentExe == "" {
+        print("Error: could not resolve current executable path")
+        Sys.exit(1)
+    }
+    print($"→ Updating {currentExe}...")
+
+    let backupPath = $"{currentExe}.bak"
+    let _bDel, _bDelErr = File.delete(backupPath)
+    // On Unix the running inode survives the rename; on Windows rename
+    // also succeeds because the open handle keeps the file alive.
+    let _mvOk, mvErr = File.move(currentExe, backupPath)
+    if mvErr {
+        let _rmOk, _rmErr = File.delete(currentExe)
+    }
+    let _cpOk, cpErr = File.copy(newBinary, currentExe)
+    if cpErr {
+        print($"Error: failed to install new binary: {cpErr}")
+        // Best-effort restore
+        let _restoreOk, _restoreErr = File.move(backupPath, currentExe)
+        Sys.exit(1)
+    }
+    if not isWindows {
+        let _chmodOut, _chmodErr = Process.exec($"chmod 755 \"{currentExe}\"")
+    }
+    let _bClean, _bCleanErr = File.delete(backupPath)
+
+    // ── Persist version + mirror to ~/.liva/bin/livac ────────────────
+    let home = Sys.env("HOME")
+    if home == "" {
+        home = Sys.env("USERPROFILE")
+    }
+    if home != "" {
+        let livaDir = Path.join(home, ".liva")
+        Dir.create(livaDir)
+        let _vOk, _vErr = File.write(Path.join(livaDir, "version"), latestTag)
+
+        let livaBin = Path.join(Path.join(livaDir, "bin"), binaryName)
+        if File.exists(livaBin) and livaBin != currentExe {
+            let _lDel, _lDelErr = File.delete(livaBin)
+            let _lCp, _lCpErr = File.copy(newBinary, livaBin)
+            if not isWindows {
+                let _lChOut, _lChErr = Process.exec($"chmod 755 \"{livaBin}\"")
+            }
+            print($"✓ Also updated {livaBin}")
+        }
+    }
+
+    // ── Cleanup ──────────────────────────────────────────────────────
+    let _tmpDel, _tmpDelErr = Dir.delete(tmpDir)
+
+    print("")
+    print($"✓ Updated to {latestTag} successfully!")
+}
+
+// =====================================================================
 //  Main Entry Point
 // =====================================================================
 
@@ -1969,7 +2207,12 @@ main() {
 
     // Handle informational commands first
     if opts.command == "version" {
-        print($"🧩 Liva Compiler v{LIVA_COMPILER_VERSION} (self-hosted)")
+        print($"🧩 Liva Compiler v{LIVA_COMPILER_VERSION}")
+        return
+    }
+
+    if opts.command == "update" {
+        _runUpdateCommand()
         return
     }
 

@@ -104,4 +104,9 @@ main() {
 
 ## Platform Notes
 
-Commands are executed via `sh -c` (Unix shell). On Linux/macOS this works with any shell command including pipes, redirects, and shell builtins.
+Commands are executed via the platform's default shell:
+
+- **Linux / macOS / BSD** → `sh -c "<command>"`
+- **Windows** → `cmd /C "<command>"` *(v2.7.0+)*
+
+Before v2.7.0 `Process.exec` always used `sh -c` and therefore failed on Windows. Now the shell is selected automatically via `cfg!(windows)`, so portable commands (`curl`, `tar`, `git`, `node`, `python`, etc.) work on all three platforms. Shell builtins, pipes, and redirects use the **host shell's syntax** — write `dir` on Windows vs. `ls` on Unix, or branch on `Sys.os()`.
