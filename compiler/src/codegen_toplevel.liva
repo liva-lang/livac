@@ -70,6 +70,15 @@ extend RustEmitter {
             return
         }
 
+        // Skip "bare" stdlib module imports — e.g. `import { Server, Response }
+        // from "http"`. Stdlib namespaces (Server, Response, DB, HTTP, JSON,
+        // File, Log, Config, …) are global identifiers handled by codegen
+        // directly; there's no Rust module to lower these to. A source path
+        // with no "/" and no "." is treated as a virtual stdlib namespace.
+        if !decl.source.contains("/") && !decl.source.contains(".") {
+            return
+        }
+
         // Imports become mod/use statements in Rust
         // Only main module should emit 'mod X;' declarations
         let modName = this._extractModuleName(decl.source)

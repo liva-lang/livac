@@ -68,7 +68,7 @@ import { ModuleResolver, LivaModule } from "./module"
 
 use rust "rustyline" version "14"
 
-const LIVA_COMPILER_VERSION = "2.7.0"
+const LIVA_COMPILER_VERSION = "2.7.1"
 
 // =====================================================================
 //  CLI Argument Parsing
@@ -880,16 +880,24 @@ writeOutputFiles(result: CompilationResult, outputDir: string) {
 }
 
 runCargoBuild(outputDir: string, release: bool): bool {
-    let cmd = _buildCargoCmd(outputDir, release)
-    let output = Process.exec(cmd) or "CARGO_BUILD_FAILED"
-    return output != "CARGO_BUILD_FAILED"
+    // Process.exec returns combined stdout+stderr regardless of exit code,
+    // so append a success sentinel that only prints when cargo exits 0.
+    let cmd = _buildCargoCmd(outputDir, release) + " && echo __LIVAC_BUILD_OK__"
+    let output = Process.exec(cmd) or ""
+    if output.contains("__LIVAC_BUILD_OK__") {
+        return true
+    }
+    if output != "" {
+        print(output)
+    }
+    return false
 }
 
 _buildCargoCmd(outputDir: string, release: bool): string {
     if release {
-        return "cd " + outputDir + " && cargo build --release"
+        return "cd " + outputDir + " && cargo build --release 2>&1"
     }
-    return "cd " + outputDir + " && cargo build"
+    return "cd " + outputDir + " && cargo build 2>&1"
 }
 
 runBinary(outputDir: string, release: bool, projectName: string) {

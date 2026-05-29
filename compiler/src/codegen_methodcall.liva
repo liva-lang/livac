@@ -20,6 +20,52 @@ import { RustEmitter } from "./codegen"
 extend RustEmitter {
 
     _emitMethodCall(obj: Expr, method: string, args: [Expr]) {
+        // Response.status(N).text(body) / .json(body) chain.
+        // `Response.status(N)` alone emits an `axum::http::StatusCode`, which
+        // has no `.text`/`.json` methods. When the immediate receiver is a
+        // `Response.status(...)` call, fold the chain into the `(StatusCode,
+        // body)` tuple form that axum accepts as a response.
+        if method == "text" or method == "json" {
+            let isResponseStatusChain = false
+            let statusCodeExpr: Expr? = null
+            switch obj {
+                Expr.MethodCall(innerObj, innerMethod, innerArgs) => {
+                    if innerMethod == "status" {
+                        switch innerObj {
+                            Expr.Identifier(innerName) => {
+                                if innerName == "Response" && innerArgs.length >= 1 {
+                                    isResponseStatusChain = true
+                                    statusCodeExpr = innerArgs[0]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if isResponseStatusChain {
+                if statusCodeExpr != null {
+                    this._write("(axum::http::StatusCode::from_u16(")
+                    this._emitExpr(statusCodeExpr)
+                    this._write(" as u16).unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR), ")
+                    if method == "json" && args.length >= 1 {
+                        this._write("axum::Json(serde_json::json!(")
+                        this._emitJsonArg(args[0])
+                        this._write(")))")
+                    } else if args.length >= 1 {
+                        // Use format!() with _emitFormatArg so that
+                        // err-bindings (Option<liva_rt::Error>) and other
+                        // non-Display values are coerced to String safely.
+                        this._write("format!(\"{}\", ")
+                        this._emitFormatArg(args[0])
+                        this._write("))")
+                    } else {
+                        this._write("String::new())")
+                    }
+                    return
+                }
+            }
+        }
+
         // A.3: HTTP routing — `app.get/post/put/delete/listen` where app
         // is a tracked server var (assigned from Server.create()).
         let isServerCall = false

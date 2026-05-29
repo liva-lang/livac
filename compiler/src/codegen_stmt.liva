@@ -259,9 +259,33 @@ extend RustEmitter {
                 this._writeln("}")
             },
             Stmt.Defer(deferStmt) => {
-                // Defer uses a guard pattern in Rust
-                this._writeln("// defer (simplified — full impl in Phase 3 refinement)")
-                this._emitStmt(deferStmt)
+                // Defer uses a guard pattern in Rust. Common stdlib cleanup
+                // calls (DB.close, File.close) are handled by Rust's RAII
+                // when the value goes out of scope, so emitting them eagerly
+                // (current simplified lowering) only moves the value early
+                // and breaks subsequent uses. Skip those defers entirely.
+                let skipDefer = false
+                switch deferStmt {
+                    Stmt.ExprStmt(dExpr) => {
+                        switch dExpr {
+                            Expr.MethodCall(dObj, dMethod, _) => {
+                                if dMethod == "close" {
+                                    switch dObj {
+                                        Expr.Identifier(dName) => {
+                                            if dName == "DB" || dName == "File" {
+                                                skipDefer = true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if !skipDefer {
+                    this._writeln("// defer (simplified — full impl in Phase 3 refinement)")
+                    this._emitStmt(deferStmt)
+                }
             }
         }
     }
@@ -294,7 +318,17 @@ extend RustEmitter {
         if optExpr != null {
             this._writeIndent()
             this._write("return ")
-            if this._currentReturnOptional {
+            // When inside a server handler (Server.create() route lambda),
+            // wrap the value in IntoResponse so all branches unify on
+            // `axum::response::Response` regardless of whether they came
+            // from `Response.text`, `Response.json`, or
+            // `Response.status(n).text/.json(...)`.
+            let inHandler = this._serverRequestParam != ""
+            if inHandler {
+                this._write("axum::response::IntoResponse::into_response(")
+                this._emitExpr(optExpr)
+                this._write(")")
+            } else if this._currentReturnOptional {
                 this._emitSomeWrapped(optExpr)
             } else if this._currentReturnFallible {
                 this._write("Ok(")

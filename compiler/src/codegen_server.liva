@@ -126,7 +126,13 @@ extend RustEmitter {
                                     Stmt.ExprStmt(eExpr) => {
                                         isExprStmt = true
                                         this._writeIndent()
+                                        // Tail-expression of handler body
+                                        // becomes the response — wrap it in
+                                        // IntoResponse so it unifies with
+                                        // any early `return` branches.
+                                        this._write("axum::response::IntoResponse::into_response(")
                                         this._emitExpr(eExpr)
+                                        this._write(")")
                                         this._newline()
                                     }
                                 }
@@ -142,7 +148,9 @@ extend RustEmitter {
                     LambdaBody.Expr(exprs) => {
                         if exprs.length >= 1 {
                             this._writeIndent()
+                            this._write("axum::response::IntoResponse::into_response(")
                             this._emitExpr(exprs[0])
+                            this._write(")")
                             this._newline()
                         }
                     }

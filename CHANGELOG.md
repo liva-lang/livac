@@ -9,6 +9,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > **Companion docs:** `BACKLOG.md` (open tasks, work-in-progress),
 > `ROADMAP.md` (high-level vision and phases).
 
+## [2.7.1] — 2026-05-29 — Desktop-examples sweep: surface cargo errors + 8 codegen fixes
+
+### Fixed — `livac run` / `livac build`
+- `livac run` and `livac build` were silently swallowing `cargo build` errors:
+  `Process.exec` returns combined stdout+stderr regardless of exit code, so
+  `runCargoBuild` always returned `true`, causing `livac run` to attempt
+  executing a non-existent binary with the cryptic
+  `sh: 1: target/liva_build/target/debug/<name>: not found`.
+- Build command now appends a `__LIVAC_BUILD_OK__` success sentinel and
+  redirects stderr to stdout (`2>&1`), so cargo's real error output is
+  printed on failure and the command exits with `Build failed`.
+
+### Fixed — Codegen bugs uncovered by the website's copy-paste examples
+Triggered by running every snippet in the homepage `CodeShowcase` end-to-end:
+
+- **stdlib tuple `or fail` / `or <default>`** — calls like
+  `File.read(...) or fail` returned `(Option<T>, String)`, not `Result<T, E>`,
+  so the generic `match Ok/Err` lowering emitted invalid Rust. Added a
+  dedicated tuple branch in `codegen_vardecl.liva` that destructures `__t.1`
+  as the failure signal.
+- **`Response.status(N).text(body)` / `.json(body)` chain** — `status()`
+  emitted a bare `StatusCode` with no follow-up method available. Now
+  detected as a chain in `codegen_methodcall.liva` and lowered to the
+  axum tuple `(StatusCode, body)` form.
+- **Bare stdlib imports** — `import { Server, Response } from "http"`
+  raised `E0432: unresolved import` because the `http` module doesn't exist
+  in Rust. Bare imports (no `/` or `.`) are now silently skipped.
+- **Err-binding in `Response.text(e)`** — `e: Option<liva_rt::Error>` was
+  passed as-is to `format!`. Now coerced via
+  `e.as_ref().map(|x| format!("{}", x)).unwrap_or_default()`.
+- **HTTP handler return-type unification** — branches of an axum closure
+  returning `(StatusCode, String)` vs `axum::Json<Value>` didn't unify.
+  Both branches now wrap the value in `IntoResponse::into_response(...)`.
+- **`defer DB.close(db)` / `defer File.close(f)`** — emitted `drop(db);`
+  at the start of the scope, moving the `Arc` before route handlers could
+  clone it. These defers are now skipped entirely (Rust RAII handles
+  cleanup on scope exit).
+- **Fallible `main` printed `Debug` of error** — programs like
+  `let x = File.read("missing") or fail` exited with
+  `Error: Error { message: "", cause: Some(Error { message: "File read error: ..." }) }`.
+  Now `main` is renamed to `__liva_user_main` and a wrapper `fn main()` is
+  emitted that walks the `cause` chain and prints via `Display`:
+  `File read error: No such file or directory (os error 2)`.
+- **Point-free `forEach(print)` / `map(print)`** — emitted bare `print` as
+  an identifier, but `print!`/`println!` are macros, not values
+  (`E0423: not a value`). Now lowered to a thin closure
+  `|__v| println!("{}", __v)`.
+- **`expect(err).toBeTruthy()` on err-bindings** — `err` is
+  `Option<liva_rt::Error>` but `toBeTruthy` emitted `assert!(err)`, which
+  fails (`E0600: cannot apply unary operator !` to Option). Now detects
+  err-bindings via `_errBindings` and emits `assert!(err.is_some())`.
+
+### Changed — Website examples
+- All 9 snippets in `CodeShowcase.astro` now compile and run with
+  `livac run` / `livac test` end-to-end. Adjustments needed to make them
+  self-contained were:
+  - `types`: wrapped in `main()`, replaced array destructuring with
+    explicit indexing.
+  - `enums`: payload types changed from `number` to `float` so
+    `3.14 * r * r` doesn't mismatch.
+  - `classes`: replaced `Date.now()` (returns `NaiveDateTime`) with
+    `Date.timestamp()` (returns `number`).
+  - `concur`: dropped the external HTTP call; scaled `par` iterations
+    down to avoid `i32` overflow in the demo.
+  - `tests`: inlined the helper module instead of importing `./math`.
+
 ## [2.7.0] — 2026-05-28 — `livac update` ported to gen-2 + stdlib growth
 
 After v2.6.0 swapped the Rust bootstrap for the gen-2 self-hosted binary

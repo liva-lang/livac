@@ -315,6 +315,47 @@ extend RustEmitter {
 
         // Handle fallible init (or fail / or value)
         if decl.isFallible {
+            // Stdlib tuple-call special case: File/Dir/DB/Process/HTTP/JSON…
+            // return `(Option<T>, String)` directly, NOT a `Result`. The
+            // generic Result-style Ok/Err match would emit invalid Rust.
+            // Destructure the tuple and treat a non-empty error string as
+            // the failure signal.
+            if this._isStdlibTupleCall(decl.init) {
+                let bufBefore0 = this._currentLine.length
+                this._emitExpr(decl.init)
+                let initStr0 = this._currentLine.substring(bufBefore0, this._currentLine.length)
+                this._currentLine = this._currentLine.substring(0, bufBefore0)
+                let orVal0 = decl.orValue
+                if orVal0 != null {
+                    // or <default>: use fallback when Option is None
+                    this._write("{ let __t = ")
+                    this._write(initStr0)
+                    this._write("; __t.0.unwrap_or(")
+                    this._emitExpr(orVal0)
+                    this._write(") }")
+                } else {
+                    // or fail [msg]: propagate when error string is non-empty
+                    let orMsg0 = decl.orFailMsg
+                    if this._inTestBlock || not this._currentReturnFallible {
+                        this._write("{ let __t = ")
+                        this._write(initStr0)
+                        this._write("; if !__t.1.is_empty() { panic!(\"{}\", ")
+                        if orMsg0 != null { this._emitExpr(orMsg0) } else { this._write("__t.1") }
+                        this._write("); } __t.0.unwrap_or_default() }")
+                    } else {
+                        this._write("{ let __t = ")
+                        this._write(initStr0)
+                        this._write("; if !__t.1.is_empty() { return Err(liva_rt::Error::")
+                        if orMsg0 != null {
+                            this._write("chain(format!(\"{}\", ")
+                            this._emitExpr(orMsg0)
+                            this._write("), liva_rt::Error::from(__t.1))); } __t.0.unwrap_or_default() }")
+                        } else {
+                            this._write("from(__t.1)); } __t.0.unwrap_or_default() }")
+                        }
+                    }
+                }
+            } else {
             let orVal = decl.orValue
             if orVal != null {
                 // or <value> → expr.unwrap_or(fallback) — works for both Option AND Result
@@ -380,6 +421,7 @@ extend RustEmitter {
                     }
                 }
             }
+            } // end else (non-stdlib-tuple)
         } else {
             // B?: empty object literal `{}` typed as Set should produce HashSet,
             // not the default ObjectLiteral lowering (HashMap-flavoured).

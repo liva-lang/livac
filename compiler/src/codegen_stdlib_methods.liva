@@ -19,6 +19,24 @@ import { RustEmitter } from "./codegen"
 
 extend RustEmitter {
 
+    // Point-free `print`/`println` passed as a callback (e.g.
+    // `nums.forEach(print)`) cannot be lowered to a bare identifier in Rust
+    // because `print`/`println` are macros, not values. Emit a thin closure.
+    // Returns true if the arg was special-cased and emitted; false otherwise.
+    _emitPrintAsClosureIfIdent(arg: Expr): bool {
+        let isPrintIdent = false
+        switch arg {
+            Expr.Identifier(name) => {
+                if name == "print" || name == "println" { isPrintIdent = true }
+            }
+        }
+        if isPrintIdent {
+            this._write("|__v| println!(\"{}\", __v)")
+            return true
+        }
+        return false
+    }
+
     _emitDateMethod(obj: Expr, method: string, args: [Expr]) {
         if method == "format" && args.length >= 1 {
             this._emitExpr(obj)
@@ -948,7 +966,9 @@ extend RustEmitter {
         if method == "map" {
             this._emitIterPrefix(obj, true)
             this._write(".map(")
-            if args.length > 0 { this._emitExpr(args[0]) }
+            if args.length > 0 {
+                if !this._emitPrintAsClosureIfIdent(args[0]) { this._emitExpr(args[0]) }
+            }
             this._write(")")
             if not this._inIterChain { this._write(".collect::<Vec<_>>()") }
             return true
@@ -997,7 +1017,9 @@ extend RustEmitter {
         if method == "forEach" {
             this._emitIterPrefix(obj, true)
             this._write(".for_each(")
-            if args.length > 0 { this._emitExpr(args[0]) }
+            if args.length > 0 {
+                if !this._emitPrintAsClosureIfIdent(args[0]) { this._emitExpr(args[0]) }
+            }
             this._write(")")
             return true
         }

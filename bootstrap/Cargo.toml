@@ -1,6 +1,6 @@
 [package]
 name = "livac-bootstrap"
-version = "2.7.0"
+version = "2.7.1"
 edition = "2021"
 authors = ["Fran Nadal"]
 description = "Liva to Rust compiler - combining TypeScript simplicity, Python expressiveness, and Rust safety"

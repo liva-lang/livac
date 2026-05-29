@@ -144,13 +144,22 @@ extend RustEmitter {
                 this._mainNeedsAsync = prevNeed
             }
             let asyncKw2 = ""
+            // If main is fallible, rename the user body to __liva_user_main and
+            // emit a small wrapper `fn main()` afterwards that prints errors
+            // via Display (nice trace) instead of letting Rust use Debug.
+            let emitName2 = funcName
+            let needsMainWrapper = false
+            if funcName == "main" && this._currentReturnFallible {
+                emitName2 = "__liva_user_main"
+                needsMainWrapper = true
+            }
             if effectiveAsync2 {
                 asyncKw2 = "async "
-                if funcName == "main" {
+                if funcName == "main" && !needsMainWrapper {
                     this._writeln("#[tokio::main]")
                 }
             }
-            this._writeln("pub " + asyncKw2 + "fn " + funcName + typeParamStr + "(" + paramList + ")" + retStr + " {")
+            this._writeln("pub " + asyncKw2 + "fn " + emitName2 + typeParamStr + "(" + paramList + ")" + retStr + " {")
             this._indent()
             // Cycle 36 — snapshot whether the body already ends with an
             // unconditional return/fail BEFORE we move `decl.body` into
@@ -185,6 +194,30 @@ extend RustEmitter {
         this._dedent()
         this._writeln("}")
         this._writeRaw("")
+
+        // Emit a thin `main` wrapper that prints any Err via Display (nice
+        // error trace box from liva_rt::Error) and exits with code 1.
+        if funcName == "main" && this._currentReturnFallible {
+            let wrapperAsync = this._mainNeedsAsync
+            let dotAwait = ""
+            if wrapperAsync {
+                this._writeln("#[tokio::main]")
+                this._writeln("async fn main() {")
+                dotAwait = ".await"
+            } else {
+                this._writeln("fn main() {")
+            }
+            this._indent()
+            this._writeln("if let Err(e) = __liva_user_main()" + dotAwait + " {")
+            this._indent()
+            this._writeln("eprintln!(\"{}\", e);")
+            this._writeln("std::process::exit(1);")
+            this._dedent()
+            this._writeln("}")
+            this._dedent()
+            this._writeln("}")
+            this._writeRaw("")
+        }
 
         this._currentFunc = prevFunc
         this._currentReturnOptional = prevRetOpt

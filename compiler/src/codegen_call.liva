@@ -322,6 +322,7 @@ extend RustEmitter {
                                 switch vt {
                                     TypeRef.OptionalType(_) => { isOption = true }
                                 }
+                                if this._errBindings.has(varName) { isOption = true }
                             }
                         }
                         actualCode = this._exprToString(ca)
@@ -348,6 +349,7 @@ extend RustEmitter {
                                             switch vt2 {
                                                 TypeRef.OptionalType(_) => { isOption = true }
                                             }
+                                            if this._errBindings.has(varName2) { isOption = true }
                                         }
                                     }
                                     actualCode = this._exprToString(ca2)
